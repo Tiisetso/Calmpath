@@ -25,7 +25,7 @@ final class MigraineLog {
     var pressure: Double? // in hPa (millibars)
     var humidity: Double? // 0.0 - 1.0 fraction
     var weatherCondition: String? // e.g., clear, rain, cloudy
-    var moonPhase: String? // e.g., waxingGibbous
+    // var moonPhase: String? // e.g., waxingGibbous
     var sleepStart: Date?
     var sleepEnd: Date?
     var sleepDuration: Double? // seconds
@@ -40,7 +40,7 @@ final class MigraineLog {
         pressure: Double? = nil,
         humidity: Double? = nil,
         weatherCondition: String? = nil,
-        moonPhase: String? = nil,
+        // moonPhase: String? = nil,
         sleepStart: Date? = nil,
         sleepEnd: Date? = nil,
         sleepDuration: Double? = nil,
@@ -54,7 +54,7 @@ final class MigraineLog {
         self.pressure = pressure
         self.humidity = humidity
         self.weatherCondition = weatherCondition
-        self.moonPhase = moonPhase
+        // self.moonPhase = moonPhase
         self.sleepStart = sleepStart
         self.sleepEnd = sleepEnd
         self.sleepDuration = sleepDuration
@@ -348,7 +348,7 @@ class WeatherManager: ObservableObject {
         return weather.currentWeather.temperature.value
     }
     
-    func fetchCurrentWeatherBundle() async throws -> (temperature: Double, humidity: Double?, condition: String?, moonPhase: String?) {
+    func fetchCurrentWeatherBundle() async throws -> (temperature: Double, humidity: Double?, condition: String?) {
         if currentAuthorizationStatus() == .notDetermined {
             _ = await ensureLocationAuthorization()
         }
@@ -365,13 +365,14 @@ class WeatherManager: ObservableObject {
         let hum = weather.currentWeather.humidity
         // Weather condition as string
         let cond = String(describing: weather.currentWeather.condition)
-        var moon: String? = nil
-        if #available(iOS 16.0, *) {
-            if let astronomy = try? await weatherService.astronomy(for: resolvedLocation, date: Date()) {
-                moon = String(describing: astronomy.moonPhase)
-            }
-        }
-        return (temp, hum, cond, moon)
+        // var moon: String? = nil
+        // if #available(iOS 16.0, *) {
+        //     if let astronomy = try? await weatherService.astronomy(for: resolvedLocation, date: Date()) {
+        //         moon = String(describing: astronomy.moonPhase)
+        //     }
+        // }
+        // return (temp, hum, cond, moon)
+        return (temp, hum, cond)
     }
     
     // Test WeatherKit independently of device location to diagnose entitlement/JWT issues
@@ -723,7 +724,7 @@ struct HomeView: View {
             let pressure: Double?
             let humidity: Double?
             let weatherCondition: String?
-            let moonPhase: String?
+            // let moonPhase: String?
             let sleepStart: Date?
             let sleepEnd: Date?
             let sleepDuration: Double?
@@ -737,7 +738,7 @@ struct HomeView: View {
                 pressure = 1013.2
                 humidity = 0.55
                 weatherCondition = "clear"
-                moonPhase = "waxingGibbous"
+                // moonPhase = "waxingGibbous"
                 let now = Date()
                 sleepEnd = now
                 sleepStart = Calendar.current.date(byAdding: .hour, value: -7, to: now)
@@ -751,12 +752,12 @@ struct HomeView: View {
                     temperature = bundle.temperature
                     humidity = bundle.humidity
                     weatherCondition = bundle.condition
-                    moonPhase = bundle.moonPhase
+                    // moonPhase = bundle.moonPhase
                 } else {
                     temperature = .nan
                     humidity = nil
                     weatherCondition = nil
-                    moonPhase = nil
+                    // moonPhase = nil
                 }
                 pressure = (try? await barometerManager.fetchCurrentPressure_hPa())
                 if let sleep = try? await healthKitManager.fetchLastSleepPeriod() {
@@ -788,7 +789,7 @@ struct HomeView: View {
                 pressure: pressure,
                 humidity: humidity,
                 weatherCondition: weatherCondition,
-                moonPhase: moonPhase,
+                // moonPhase: moonPhase,
                 sleepStart: sleepStart,
                 sleepEnd: sleepEnd,
                 sleepDuration: sleepDuration,
@@ -1155,6 +1156,7 @@ struct MigraineDetailView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                /*
                 if let moon = log.moonPhase {
                     HStack {
                         Label("Moon Phase", systemImage: "moonphase.waxing.gibbous")
@@ -1163,6 +1165,7 @@ struct MigraineDetailView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                */
                 
                 if let state = log.movementState {
                     HStack {
