@@ -36,6 +36,34 @@ final class MigraineLog {
     var movementState: String? // stationary, walking, running, cycling, automotive, unknown
     var movementConfidence: Int? // 0=low, 1=medium, 2=high
     var painDescription: String? // qualitative pain description (e.g., pulsing, pressure, sharp, burning, electric, dull)
+    var painLocations: [String]? // multiple pain locations selected by user
+    var painLocation: String? // single selected pain location
+    var onsetPattern: String? // sudden, gradual, tension-became-migraine, woke-up-with-it, stress-trigger
+    var mood: String? // brain fog, word-finding difficulty, irritability, anxiety surge, fatigue wave, feeling detached, slowed thinking
+    var lightSensitivity: Bool // default false
+    var soundSensitivity: Bool // default false
+    var smellSensitivity: Bool // default false
+    var motionSensitivity: Bool // default false
+    // Facial symptoms
+    var eyeTearing: Bool // default false
+    var eyeDrooping: Bool // default false
+    var nasalCongestion: Bool // default false
+    var flushedFace: Bool // default false
+    var restlessness: Bool // default false
+    // Aura symptoms
+    var auraZigzags: Bool // default false
+    var auraSparkles: Bool // default false
+    var auraBlockedVision: Bool // default false
+    var auraNumbness: Bool // default false
+    var auraSpeechTrouble: Bool // default false
+    var auraDistortedShapes: Bool // default false
+    // Prodrome symptoms (before pain)
+    var prodromeCravings: Bool // default false
+    var prodromeYawning: Bool // default false
+    var prodromePeeing: Bool // default false
+    var prodromeNeckStiffness: Bool // default false
+    var prodromeMoodChange: Bool // default false
+    var prodromeEnergyChange: Bool // default false
     // Human-readable summary of relevant calendar events (titles and locations)
     var calendarContext: String?
     
@@ -60,6 +88,31 @@ final class MigraineLog {
         movementState: String? = nil,
         movementConfidence: Int? = nil,
         painDescription: String? = nil,
+        painLocations: [String]? = nil,
+        painLocation: String? = nil,
+        onsetPattern: String? = nil,
+        mood: String? = nil,
+        lightSensitivity: Bool = false,
+        soundSensitivity: Bool = false,
+        smellSensitivity: Bool = false,
+        motionSensitivity: Bool = false,
+        eyeTearing: Bool = false,
+        eyeDrooping: Bool = false,
+        nasalCongestion: Bool = false,
+        flushedFace: Bool = false,
+        restlessness: Bool = false,
+        auraZigzags: Bool = false,
+        auraSparkles: Bool = false,
+        auraBlockedVision: Bool = false,
+        auraNumbness: Bool = false,
+        auraSpeechTrouble: Bool = false,
+        auraDistortedShapes: Bool = false,
+        prodromeCravings: Bool = false,
+        prodromeYawning: Bool = false,
+        prodromePeeing: Bool = false,
+        prodromeNeckStiffness: Bool = false,
+        prodromeMoodChange: Bool = false,
+        prodromeEnergyChange: Bool = false,
         averageHeartRate: Double? = nil,
         maxHeartRate: Double? = nil,
         restingHeartRate: Double? = nil,
@@ -85,6 +138,31 @@ final class MigraineLog {
         self.movementState = movementState
         self.movementConfidence = movementConfidence
         self.painDescription = painDescription
+        self.painLocations = painLocations
+        self.painLocation = painLocation
+        self.onsetPattern = onsetPattern
+        self.mood = mood
+        self.lightSensitivity = lightSensitivity
+        self.soundSensitivity = soundSensitivity
+        self.smellSensitivity = smellSensitivity
+        self.motionSensitivity = motionSensitivity
+        self.eyeTearing = eyeTearing
+        self.eyeDrooping = eyeDrooping
+        self.nasalCongestion = nasalCongestion
+        self.flushedFace = flushedFace
+        self.restlessness = restlessness
+        self.auraZigzags = auraZigzags
+        self.auraSparkles = auraSparkles
+        self.auraBlockedVision = auraBlockedVision
+        self.auraNumbness = auraNumbness
+        self.auraSpeechTrouble = auraSpeechTrouble
+        self.auraDistortedShapes = auraDistortedShapes
+        self.prodromeCravings = prodromeCravings
+        self.prodromeYawning = prodromeYawning
+        self.prodromePeeing = prodromePeeing
+        self.prodromeNeckStiffness = prodromeNeckStiffness
+        self.prodromeMoodChange = prodromeMoodChange
+        self.prodromeEnergyChange = prodromeEnergyChange
         self.averageHeartRate = averageHeartRate
         self.maxHeartRate = maxHeartRate
         self.restingHeartRate = restingHeartRate
@@ -1026,6 +1104,8 @@ struct HomeView: View {
             let movementState: String?
             let movementConfidence: Int?
             let painDescription: String?
+            let painLocations: [String]?
+            let painLocation: String?
             
             let averageHeartRate: Double?
             let maxHeartRate: Double?
@@ -1050,6 +1130,8 @@ struct HomeView: View {
                 movementState = "stationary"
                 movementConfidence = 2
                 painDescription = "Pulsing / throbbing"
+                painLocations = ["One side"]
+                painLocation = "One side"
                 
                 calendarContext = nil
                 
@@ -1092,6 +1174,8 @@ struct HomeView: View {
                     movementConfidence = nil
                 }
                 painDescription = nil
+                painLocations = nil
+                painLocation = nil
                 
                 let hrStats = try? await healthKitManager.fetchHeartRateStatsLast24h()
                 averageHeartRate = hrStats?.average
@@ -1132,6 +1216,8 @@ struct HomeView: View {
                 movementState: movementState,
                 movementConfidence: movementConfidence,
                 painDescription: painDescription,
+                painLocations: painLocations,
+                painLocation: painLocation,
                 averageHeartRate: averageHeartRate,
                 maxHeartRate: maxHeartRate,
                 restingHeartRate: restingHeartRate,
@@ -1415,6 +1501,33 @@ struct MigraineDetailView: View {
         "Electric / shooting",
         "Dull / aching"
     ]
+    private let painLocationOptions: [String] = [
+        "One side",
+        "Both sides",
+        "Behind eye",
+        "Forehead",
+        "Back of head",
+        "Neck involvement",
+        "Spread over time"
+    ]
+    
+    private let onsetPatternOptions: [String] = [
+        "Sudden",
+        "Gradual",
+        "Started as tension, became migraine",
+        "Woke up with it",
+        "Stress trigger"
+    ]
+    
+    private let moodOptions: [String] = [
+        "Brain fog",
+        "Word-finding difficulty",
+        "Irritability",
+        "Anxiety surge",
+        "Fatigue wave",
+        "Feeling \"Detached\"",
+        "Slowed thinking"
+    ]
     
     var body: some View {
         List {
@@ -1454,42 +1567,45 @@ struct MigraineDetailView: View {
                     Text(intensityDescription)
                         .font(.headline)
                         .frame(maxWidth: .infinity)
+                    
+                    // Adjustable intensity slider
+                    VStack(alignment: .leading, spacing: 12) {
+                        if #available(iOS 17.0, *) {
+                            Slider(value: $log.intensity, in: 0...1)
+                                .tint(intensityColor)
+                                .onChange(of: log.intensity) { _, _ in
+                                    try? modelContext.save()
+                                }
+                                .padding(.horizontal, 16)
+                        } else {
+                            Slider(value: $log.intensity, in: 0...1)
+                                .tint(intensityColor)
+                                .onChange(of: log.intensity) { _ in
+                                    try? modelContext.save()
+                                }
+                                .padding(.horizontal, 16)
+                        }
+                        HStack {
+                            Text("Mild")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("Severe")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                    }
                 }
                 .padding(.vertical, 8)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    if #available(iOS 17.0, *) {
-                        Slider(value: $log.intensity, in: 0...1)
-                            .tint(intensityColor)
-                            .onChange(of: log.intensity) { _, _ in
-                                try? modelContext.save()
-                            }
-                            .padding(.horizontal, 16)
-                    } else {
-                        Slider(value: $log.intensity, in: 0...1)
-                            .tint(intensityColor)
-                            .onChange(of: log.intensity) { _ in
-                                try? modelContext.save()
-                            }
-                            .padding(.horizontal, 16)
-                    }
-                    HStack {
-                        Text("Mild")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("Severe")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .listRowSeparator(.hidden, edges: .top)
+                .listRowSeparator(.hidden)
             }
             
             Section("Describe your Experience") {
+                // Pain Description (single selection)
                 if #available(iOS 17.0, *) {
                     Picker("Pain Description", selection: $log.painDescription) {
+                        Text("None").tag(nil as String?)
                         ForEach(painOptions, id: \.self) { option in
                             Text(option).tag(Optional(option))
                         }
@@ -1500,6 +1616,7 @@ struct MigraineDetailView: View {
                     }
                 } else {
                     Picker("Pain Description", selection: $log.painDescription) {
+                        Text("None").tag(nil as String?)
                         ForEach(painOptions, id: \.self) { option in
                             Text(option).tag(Optional(option))
                         }
@@ -1508,6 +1625,273 @@ struct MigraineDetailView: View {
                     .onChange(of: log.painDescription) { _ in
                         try? modelContext.save()
                     }
+                }
+
+                // Pain Location (single selection)
+                if #available(iOS 17.0, *) {
+                    Picker("Pain Location", selection: $log.painLocation) {
+                        Text("None").tag(nil as String?)
+                        ForEach(painLocationOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.painLocation) { _, _ in
+                        try? modelContext.save()
+                    }
+                } else {
+                    Picker("Pain Location", selection: $log.painLocation) {
+                        Text("None").tag(nil as String?)
+                        ForEach(painLocationOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.painLocation) { _ in
+                        try? modelContext.save()
+                    }
+                }
+                
+                // Onset Pattern (single selection)
+                if #available(iOS 17.0, *) {
+                    Picker("Onset Pattern", selection: $log.onsetPattern) {
+                        Text("None").tag(nil as String?)
+                        ForEach(onsetPatternOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.onsetPattern) { _, _ in
+                        try? modelContext.save()
+                    }
+                } else {
+                    Picker("Onset Pattern", selection: $log.onsetPattern) {
+                        Text("None").tag(nil as String?)
+                        ForEach(onsetPatternOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.onsetPattern) { _ in
+                        try? modelContext.save()
+                    }
+                }
+                
+                // Mood (single selection)
+                if #available(iOS 17.0, *) {
+                    Picker("Mood", selection: $log.mood) {
+                        Text("None").tag(nil as String?)
+                        ForEach(moodOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.mood) { _, _ in
+                        try? modelContext.save()
+                    }
+                } else {
+                    Picker("Mood", selection: $log.mood) {
+                        Text("None").tag(nil as String?)
+                        ForEach(moodOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.mood) { _ in
+                        try? modelContext.save()
+                    }
+                }
+            }
+            
+            Section("Sensory Experience") {
+                if #available(iOS 17.0, *) {
+                    Toggle("Light sensitivity", isOn: $log.lightSensitivity)
+                        .onChange(of: log.lightSensitivity) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
+                        .onChange(of: log.soundSensitivity) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
+                        .onChange(of: log.smellSensitivity) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
+                        .onChange(of: log.motionSensitivity) { _, _ in
+                            try? modelContext.save()
+                        }
+                } else {
+                    Toggle("Light sensitivity", isOn: $log.lightSensitivity)
+                        .onChange(of: log.lightSensitivity) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
+                        .onChange(of: log.soundSensitivity) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
+                        .onChange(of: log.smellSensitivity) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
+                        .onChange(of: log.motionSensitivity) { _ in
+                            try? modelContext.save()
+                        }
+                }
+            }
+            
+            Section("Facial Symptoms") {
+                if #available(iOS 17.0, *) {
+                    Toggle("Eye tearing", isOn: $log.eyeTearing)
+                        .onChange(of: log.eyeTearing) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Eye drooping", isOn: $log.eyeDrooping)
+                        .onChange(of: log.eyeDrooping) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
+                        .onChange(of: log.nasalCongestion) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Flushed face", isOn: $log.flushedFace)
+                        .onChange(of: log.flushedFace) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Restlessness", isOn: $log.restlessness)
+                        .onChange(of: log.restlessness) { _, _ in
+                            try? modelContext.save()
+                        }
+                } else {
+                    Toggle("Eye tearing", isOn: $log.eyeTearing)
+                        .onChange(of: log.eyeTearing) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Eye drooping", isOn: $log.eyeDrooping)
+                        .onChange(of: log.eyeDrooping) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
+                        .onChange(of: log.nasalCongestion) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Flushed face", isOn: $log.flushedFace)
+                        .onChange(of: log.flushedFace) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Restlessness", isOn: $log.restlessness)
+                        .onChange(of: log.restlessness) { _ in
+                            try? modelContext.save()
+                        }
+                }
+            }
+            
+            Section("Aura Description") {
+                if #available(iOS 17.0, *) {
+                    Toggle("Zig-zags", isOn: $log.auraZigzags)
+                        .onChange(of: log.auraZigzags) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sparkles", isOn: $log.auraSparkles)
+                        .onChange(of: log.auraSparkles) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Blocked vision", isOn: $log.auraBlockedVision)
+                        .onChange(of: log.auraBlockedVision) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Numbness", isOn: $log.auraNumbness)
+                        .onChange(of: log.auraNumbness) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
+                        .onChange(of: log.auraSpeechTrouble) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
+                        .onChange(of: log.auraDistortedShapes) { _, _ in
+                            try? modelContext.save()
+                        }
+                } else {
+                    Toggle("Zig-zags", isOn: $log.auraZigzags)
+                        .onChange(of: log.auraZigzags) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sparkles", isOn: $log.auraSparkles)
+                        .onChange(of: log.auraSparkles) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Blocked vision", isOn: $log.auraBlockedVision)
+                        .onChange(of: log.auraBlockedVision) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Numbness", isOn: $log.auraNumbness)
+                        .onChange(of: log.auraNumbness) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
+                        .onChange(of: log.auraSpeechTrouble) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
+                        .onChange(of: log.auraDistortedShapes) { _ in
+                            try? modelContext.save()
+                        }
+                }
+            }
+            
+            Section("Before Pain I Felt") {
+                if #available(iOS 17.0, *) {
+                    Toggle("Cravings", isOn: $log.prodromeCravings)
+                        .onChange(of: log.prodromeCravings) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sudden yawning", isOn: $log.prodromeYawning)
+                        .onChange(of: log.prodromeYawning) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Peeing more often", isOn: $log.prodromePeeing)
+                        .onChange(of: log.prodromePeeing) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
+                        .onChange(of: log.prodromeNeckStiffness) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Mood change", isOn: $log.prodromeMoodChange)
+                        .onChange(of: log.prodromeMoodChange) { _, _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
+                        .onChange(of: log.prodromeEnergyChange) { _, _ in
+                            try? modelContext.save()
+                        }
+                } else {
+                    Toggle("Cravings", isOn: $log.prodromeCravings)
+                        .onChange(of: log.prodromeCravings) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Sudden yawning", isOn: $log.prodromeYawning)
+                        .onChange(of: log.prodromeYawning) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Peeing more often", isOn: $log.prodromePeeing)
+                        .onChange(of: log.prodromePeeing) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
+                        .onChange(of: log.prodromeNeckStiffness) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Mood change", isOn: $log.prodromeMoodChange)
+                        .onChange(of: log.prodromeMoodChange) { _ in
+                            try? modelContext.save()
+                        }
+                    Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
+                        .onChange(of: log.prodromeEnergyChange) { _ in
+                            try? modelContext.save()
+                        }
                 }
             }
             
