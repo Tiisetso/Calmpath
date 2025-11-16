@@ -1108,11 +1108,6 @@ struct MigraineDetailView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Image(systemName: "slider.horizontal.3")
-                            .foregroundColor(.secondary)
-                        Text("Adjust Intensity")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
                         Spacer()
                         Text(String(format: "%.1f", log.intensity * 10))
                             .font(.subheadline)
@@ -1124,6 +1119,7 @@ struct MigraineDetailView: View {
                         .onChange(of: log.intensity) {
                             try? modelContext.save()
                         }
+                        .padding(.horizontal, 16)
                     HStack {
                         Text("Mild")
                             .font(.caption)
@@ -1133,7 +1129,9 @@ struct MigraineDetailView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 16)
                 }
+                .listRowSeparator(.hidden, edges: .top)
             }
             
             Section("Health Data") {
