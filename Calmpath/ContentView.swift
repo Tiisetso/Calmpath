@@ -35,6 +35,11 @@ final class MigraineLog {
     var movementState: String? // stationary, walking, running, cycling, automotive, unknown
     var movementConfidence: Int? // 0=low, 1=medium, 2=high
     
+    var averageHeartRate: Double? // bpm (24h average)
+    var maxHeartRate: Double? // bpm (24h max)
+    var restingHeartRate: Double? // bpm (most recent)
+    var heartRateVariability: Double? // ms (SDNN average over 24h)
+    
     init(
         timestamp: Date,
         intensity: Double = 0.5,
@@ -49,6 +54,10 @@ final class MigraineLog {
         sleepDuration: Double? = nil,
         movementState: String? = nil,
         movementConfidence: Int? = nil,
+        averageHeartRate: Double? = nil,
+        maxHeartRate: Double? = nil,
+        restingHeartRate: Double? = nil,
+        heartRateVariability: Double? = nil,
         locationLatitude: Double? = nil,
         locationLongitude: Double? = nil
     ) {
@@ -67,6 +76,10 @@ final class MigraineLog {
         self.sleepDuration = sleepDuration
         self.movementState = movementState
         self.movementConfidence = movementConfidence
+        self.averageHeartRate = averageHeartRate
+        self.maxHeartRate = maxHeartRate
+        self.restingHeartRate = restingHeartRate
+        self.heartRateVariability = heartRateVariability
     }
 }
 
@@ -83,7 +96,11 @@ class HealthKitManager: ObservableObject {
         
         let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
-        let typesToRead: Set<HKObjectType> = [stepType, sleepType]
+        let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+        let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
+        let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        
+        let typesToRead: Set<HKObjectType> = [stepType, sleepType, hrType, rhrType, hrvType]
         
         try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
     }
@@ -141,8 +158,12 @@ class HealthKitManager: ObservableObject {
     func ensureAuthorizationForHealthData() async throws {
         let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
         let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+        let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+        let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
+        let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        
         let requestStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKAuthorizationRequestStatus, Error>) in
-            healthStore.getRequestStatusForAuthorization(toShare: [], read: [stepType, sleepType]) { status, error in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: [stepType, sleepType, hrType, rhrType, hrvType]) { status, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -237,6 +258,80 @@ class HealthKitManager: ObservableObject {
                 }
 
                 continuation.resume(returning: (best.start, best.end, best.total))
+            }
+            self.healthStore.execute(query)
+        }
+    }
+    
+    func fetchHeartRateStatsLast24h() async throws -> (average: Double?, max: Double?) {
+        let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+        let now = Date()
+        let lookback = now.addingTimeInterval(-24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: now, options: .strictStartDate)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsQuery(quantityType: hrType, quantitySamplePredicate: predicate, options: [.discreteAverage, .discreteMax]) { _, result, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let stats = result else {
+                    continuation.resume(returning: (nil, nil))
+                    return
+                }
+                let unit = HKUnit.count().unitDivided(by: HKUnit.minute())
+                let avg = stats.averageQuantity()?.doubleValue(for: unit)
+                let max = stats.maximumQuantity()?.doubleValue(for: unit)
+                continuation.resume(returning: (avg, max))
+            }
+            self.healthStore.execute(query)
+        }
+    }
+    
+    func fetchMostRecentRestingHeartRate() async throws -> Double? {
+        let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
+        let now = Date()
+        let lookback = now.addingTimeInterval(-7 * 24 * 3600) // last 7 days fallback
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: now, options: .strictStartDate)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(sampleType: rhrType, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let quantitySample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let unit = HKUnit.count().unitDivided(by: HKUnit.minute())
+                let bpm = quantitySample.quantity.doubleValue(for: unit)
+                continuation.resume(returning: bpm)
+            }
+            self.healthStore.execute(query)
+        }
+    }
+    
+    func fetchHRVAverageLast24h() async throws -> Double? {
+        let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        let now = Date()
+        let lookback = now.addingTimeInterval(-24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: now, options: .strictStartDate)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsQuery(quantityType: hrvType, quantitySamplePredicate: predicate, options: [.discreteAverage]) { _, result, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let stats = result else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let unit = HKUnit.secondUnit(with: .milli)
+                let avg = stats.averageQuantity()?.doubleValue(for: unit)
+                continuation.resume(returning: avg)
             }
             self.healthStore.execute(query)
         }
@@ -743,6 +838,11 @@ struct HomeView: View {
             let movementState: String?
             let movementConfidence: Int?
             
+            let averageHeartRate: Double?
+            let maxHeartRate: Double?
+            let restingHeartRate: Double?
+            let heartRateVariability: Double?
+            
             if isPreview {
                 // Mock data for previews
                 stepCount = 1234
@@ -757,6 +857,11 @@ struct HomeView: View {
                 sleepDuration = sleepStart != nil ? now.timeIntervalSince(sleepStart!) : nil
                 movementState = "stationary"
                 movementConfidence = 2
+                
+                averageHeartRate = 72
+                maxHeartRate = 134
+                restingHeartRate = 58
+                heartRateVariability = 55
             } else {
                 // Fallbacks if sensors/services are unavailable or fail
                 stepCount = (try? await healthKitManager.fetchTodayStepCount()) ?? 0
@@ -790,6 +895,13 @@ struct HomeView: View {
                     movementState = nil
                     movementConfidence = nil
                 }
+                
+                let hrStats = try? await healthKitManager.fetchHeartRateStatsLast24h()
+                averageHeartRate = hrStats?.average
+                maxHeartRate = hrStats?.max
+                restingHeartRate = try? await healthKitManager.fetchMostRecentRestingHeartRate()
+                heartRateVariability = try? await healthKitManager.fetchHRVAverageLast24h()
+                
                 if let loc = try? await weatherManager.requestOneLocation() {
                     locationLatitude = loc.coordinate.latitude
                     locationLongitude = loc.coordinate.longitude
@@ -811,6 +923,10 @@ struct HomeView: View {
                 sleepDuration: sleepDuration,
                 movementState: movementState,
                 movementConfidence: movementConfidence,
+                averageHeartRate: averageHeartRate,
+                maxHeartRate: maxHeartRate,
+                restingHeartRate: restingHeartRate,
+                heartRateVariability: heartRateVariability,
                 locationLatitude: locationLatitude,
                 locationLongitude: locationLongitude
             )
@@ -1150,6 +1266,68 @@ struct MigraineDetailView: View {
                 .listRowSeparator(.hidden, edges: .top)
             }
             
+            Section("Sleep") {
+                if let start = log.sleepStart, let end = log.sleepEnd, let duration = log.sleepDuration {
+                    HStack {
+                        Label("Bedtime", systemImage: "bed.double.fill")
+                        Spacer()
+                        Text(start, style: .time)
+                            .foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Label("Wake", systemImage: "alarm")
+                        Spacer()
+                        Text(end, style: .time)
+                            .foregroundColor(.secondary)
+                    }
+                    HStack {
+                        Label("Total Sleep", systemImage: "clock")
+                        Spacer()
+                        let hours = duration / 3600.0
+                        Text(String(format: "%.1f hours", hours))
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("No recent sleep data available")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Section("Heart") {
+                if let avg = log.averageHeartRate {
+                    HStack {
+                        Label("Avg Heart Rate", systemImage: "heart.fill")
+                        Spacer()
+                        Text(String(format: "%.0f bpm", avg))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if let mx = log.maxHeartRate {
+                    HStack {
+                        Label("Max Heart Rate", systemImage: "heart.circle")
+                        Spacer()
+                        Text(String(format: "%.0f bpm", mx))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if let rhr = log.restingHeartRate {
+                    HStack {
+                        Label("Resting Heart Rate", systemImage: "heart")
+                        Spacer()
+                        Text(String(format: "%.0f bpm", rhr))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                if let hrv = log.heartRateVariability {
+                    HStack {
+                        Label("HRV (SDNN)", systemImage: "waveform.path.ecg")
+                        Spacer()
+                        Text(String(format: "%.0f ms", hrv))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
             Section("Health Data") {
                 HStack {
                     Label("Steps Today", systemImage: "figure.walk")
@@ -1189,16 +1367,6 @@ struct MigraineDetailView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                /*
-                if let moon = log.moonPhase {
-                    HStack {
-                        Label("Moon Phase", systemImage: "moonphase.waxing.gibbous")
-                        Spacer()
-                        Text(moon.replacingOccurrences(of: "_", with: " ").capitalized)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                */
                 
                 if let state = log.movementState {
                     HStack {
@@ -1215,33 +1383,6 @@ struct MigraineDetailView: View {
                     LocationMapView(latitude: lat, longitude: lon)
                 } else {
                     Text("No location recorded")
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Section("Sleep") {
-                if let start = log.sleepStart, let end = log.sleepEnd, let duration = log.sleepDuration {
-                    HStack {
-                        Label("Bedtime", systemImage: "bed.double.fill")
-                        Spacer()
-                        Text(start, style: .time)
-                            .foregroundColor(.secondary)
-                    }
-                    HStack {
-                        Label("Wake", systemImage: "alarm")
-                        Spacer()
-                        Text(end, style: .time)
-                            .foregroundColor(.secondary)
-                    }
-                    HStack {
-                        Label("Total Sleep", systemImage: "clock")
-                        Spacer()
-                        let hours = duration / 3600.0
-                        Text(String(format: "%.1f hours", hours))
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Text("No recent sleep data available")
                         .foregroundColor(.secondary)
                 }
             }
