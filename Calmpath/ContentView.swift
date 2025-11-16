@@ -1237,6 +1237,42 @@ struct MigraineDetailView: View {
     }
 }
 
+// Inserted MeView here before Main Content View marker
+struct MeView: View {
+    @Query private var logs: [MigraineLog]
+
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Spacer()
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
+                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    VStack(spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundColor(.white)
+                            Text("Recorded Migraines")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+                        Text("\(logs.count)")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .padding(24)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Me")
+        }
+    }
+}
+
 // MARK: - Main Content View
 
 struct ContentView: View {
@@ -1250,6 +1286,11 @@ struct ContentView: View {
             LogsView()
                 .tabItem {
                     Label("Logs", systemImage: "list.bullet.clipboard")
+                }
+            
+            MeView()
+                .tabItem {
+                    Label("Me", systemImage: "person.crop.circle.fill")
                 }
         }
     }
