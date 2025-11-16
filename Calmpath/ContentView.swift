@@ -950,7 +950,7 @@ struct LogsView: View {
                     .onDelete(perform: deleteLogs)
                 }
             }
-            .navigationTitle("Migraine Logs")
+            .navigationTitle("Logs")
             .toolbar {
                 if !logs.isEmpty {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -1240,35 +1240,112 @@ struct MigraineDetailView: View {
 // Inserted MeView here before Main Content View marker
 struct MeView: View {
     @Query private var logs: [MigraineLog]
+    @State private var showingSettings = false
+
+    private var averageIntensity: Double? {
+        guard !logs.isEmpty else { return nil }
+        let sum = logs.reduce(0.0) { $0 + $1.intensity }
+        return sum / Double(logs.count)
+    }
 
     var body: some View {
         NavigationStack {
-            VStack {
-                Spacer()
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                    VStack(spacing: 12) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "brain.head.profile")
-                                .foregroundColor(.white)
-                            Text("Recorded Migraines")
-                                .font(.headline)
-                                .foregroundColor(.white)
+            GeometryReader { proxy in
+                VStack {
+                    HStack(alignment: .top, spacing: 12) {
+                        // Recorded Migraines card (left)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
+                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                            VStack(spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "brain.head.profile")
+                                        .foregroundColor(.white)
+                                    Text("Recorded Migraines")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .layoutPriority(1)
+                                }
+                                Text("\(logs.count)")
+                                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(24)
                         }
-                        Text("\(logs.count)")
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 160)
+
+                        // Average Intensity card (right)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
+                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                            VStack(spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "gauge")
+                                        .foregroundColor(.white)
+                                    Text("Average Intensity")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .layoutPriority(1)
+                                }
+                                Text(averageIntensity.map { String(format: "%.1f", $0 * 10) } ?? "—")
+                                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(24)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 160)
                     }
-                    .padding(24)
+                    Spacer()
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 160)
-                Spacer()
+                .padding()
+                .navigationTitle("Me")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape.fill")
+                        }
+                        .accessibilityLabel("Settings")
+                    }
+                }
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView()
+                }
             }
-            .padding()
-            .navigationTitle("Me")
+        }
+    }
+}
+
+struct SettingsView: View {
+    private var buildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("About") {
+                    HStack {
+                        Text("Build Number")
+                        Spacer()
+                        Text(buildNumber)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -1300,4 +1377,3 @@ struct ContentView: View {
     ContentView()
         .modelContainer(for: MigraineLog.self, inMemory: true)
 }
-
