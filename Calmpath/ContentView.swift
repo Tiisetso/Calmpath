@@ -35,6 +35,7 @@ final class MigraineLog {
     var sleepDuration: Double? // seconds
     var movementState: String? // stationary, walking, running, cycling, automotive, unknown
     var movementConfidence: Int? // 0=low, 1=medium, 2=high
+    var painDescription: String? // qualitative pain description (e.g., pulsing, pressure, sharp, burning, electric, dull)
     // Human-readable summary of relevant calendar events (titles and locations)
     var calendarContext: String?
     
@@ -58,6 +59,7 @@ final class MigraineLog {
         sleepDuration: Double? = nil,
         movementState: String? = nil,
         movementConfidence: Int? = nil,
+        painDescription: String? = nil,
         averageHeartRate: Double? = nil,
         maxHeartRate: Double? = nil,
         restingHeartRate: Double? = nil,
@@ -82,6 +84,7 @@ final class MigraineLog {
         self.sleepDuration = sleepDuration
         self.movementState = movementState
         self.movementConfidence = movementConfidence
+        self.painDescription = painDescription
         self.averageHeartRate = averageHeartRate
         self.maxHeartRate = maxHeartRate
         self.restingHeartRate = restingHeartRate
@@ -1022,6 +1025,7 @@ struct HomeView: View {
             let sleepDuration: Double?
             let movementState: String?
             let movementConfidence: Int?
+            let painDescription: String?
             
             let averageHeartRate: Double?
             let maxHeartRate: Double?
@@ -1045,6 +1049,7 @@ struct HomeView: View {
                 sleepDuration = sleepStart != nil ? now.timeIntervalSince(sleepStart!) : nil
                 movementState = "stationary"
                 movementConfidence = 2
+                painDescription = "Pulsing / throbbing"
                 
                 calendarContext = nil
                 
@@ -1086,6 +1091,7 @@ struct HomeView: View {
                     movementState = nil
                     movementConfidence = nil
                 }
+                painDescription = nil
                 
                 let hrStats = try? await healthKitManager.fetchHeartRateStatsLast24h()
                 averageHeartRate = hrStats?.average
@@ -1125,6 +1131,7 @@ struct HomeView: View {
                 sleepDuration: sleepDuration,
                 movementState: movementState,
                 movementConfidence: movementConfidence,
+                painDescription: painDescription,
                 averageHeartRate: averageHeartRate,
                 maxHeartRate: maxHeartRate,
                 restingHeartRate: restingHeartRate,
@@ -1400,6 +1407,14 @@ struct MigraineLogRow: View {
 struct MigraineDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var log: MigraineLog
+    private let painOptions: [String] = [
+        "Pulsing / throbbing",
+        "Pressure / tight",
+        "Sharp / stabbing",
+        "Burning",
+        "Electric / shooting",
+        "Dull / aching"
+    ]
     
     var body: some View {
         List {
@@ -1470,6 +1485,30 @@ struct MigraineDetailView: View {
                     .padding(.horizontal, 16)
                 }
                 .listRowSeparator(.hidden, edges: .top)
+            }
+            
+            Section("Describe your Experience") {
+                if #available(iOS 17.0, *) {
+                    Picker("Pain Description", selection: $log.painDescription) {
+                        ForEach(painOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.painDescription) { _, _ in
+                        try? modelContext.save()
+                    }
+                } else {
+                    Picker("Pain Description", selection: $log.painDescription) {
+                        ForEach(painOptions, id: \.self) { option in
+                            Text(option).tag(Optional(option))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: log.painDescription) { _ in
+                        try? modelContext.save()
+                    }
+                }
             }
             
             Section("Sleep") {
