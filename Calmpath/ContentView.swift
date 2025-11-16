@@ -411,7 +411,7 @@ class WeatherManager: ObservableObject {
         }
     }
 
-    func requestOneLocation(timeout: TimeInterval = 5) async throws -> CLLocation {
+    func requestOneLocation(timeout: TimeInterval = 10) async throws -> CLLocation {
         return try await withCheckedThrowingContinuation { continuation in
             let delegate = LocationDelegate()
             delegate.locationReceived = { loc in
@@ -492,6 +492,10 @@ class WeatherManager: ObservableObject {
     func isLikelyJWTError(_ error: Error) -> Bool {
         let ns = error as NSError
         return ns.domain.contains("WeatherDaemon.WDSJWTAuthenticatorServiceListener.Errors")
+    }
+    
+    func lastKnownLocation() -> CLLocation? {
+        return locationManager.location
     }
 }
 
@@ -902,7 +906,10 @@ struct HomeView: View {
                 restingHeartRate = try? await healthKitManager.fetchMostRecentRestingHeartRate()
                 heartRateVariability = try? await healthKitManager.fetchHRVAverageLast24h()
                 
-                if let loc = try? await weatherManager.requestOneLocation() {
+                if let last = weatherManager.lastKnownLocation() {
+                    locationLatitude = last.coordinate.latitude
+                    locationLongitude = last.coordinate.longitude
+                } else if let loc = try? await weatherManager.requestOneLocation(timeout: 10) {
                     locationLatitude = loc.coordinate.latitude
                     locationLongitude = loc.coordinate.longitude
                 }
@@ -1611,4 +1618,3 @@ struct ContentView: View {
     ContentView()
         .modelContainer(for: MigraineLog.self, inMemory: true)
 }
-
