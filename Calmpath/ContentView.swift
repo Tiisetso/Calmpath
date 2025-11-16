@@ -2158,6 +2158,8 @@ struct LocationMapView: View {
 struct MeView: View {
     @Query private var logs: [MigraineLog]
     @State private var showingSettings = false
+    @State private var showingExportSheet = false
+    @State private var exportedPDFURL: URL?
 
     private var averageIntensity: Double? {
         guard !logs.isEmpty else { return nil }
@@ -2489,6 +2491,16 @@ struct MeView: View {
             }
             .navigationTitle("Analytics")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        exportPDF()
+                    } label: {
+                        Label("Export PDF", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel("Export PDF Report")
+                    .disabled(logs.isEmpty)
+                }
+                
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingSettings = true
@@ -2501,7 +2513,629 @@ struct MeView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .sheet(isPresented: $showingExportSheet) {
+                if let url = exportedPDFURL {
+                    ShareSheet(items: [url])
+                }
+            }
         }
+    }
+    
+    private func exportPDF() {
+        let pdfGenerator = MigrainePDFGenerator(logs: logs)
+        if let url = pdfGenerator.generatePDF() {
+            exportedPDFURL = url
+            showingExportSheet = true
+        }
+    }
+}
+
+// MARK: - PDF Export
+
+class MigrainePDFGenerator {
+    let logs: [MigraineLog]
+    
+    init(logs: [MigraineLog]) {
+        self.logs = logs
+    }
+    
+    func generatePDF() -> URL? {
+        let pdfMetaData = [
+            kCGPDFContextCreator: "Calmpath",
+            kCGPDFContextTitle: "Migraine Report",
+            kCGPDFContextAuthor: "Calmpath App"
+        ]
+        let format = UIGraphicsPDFRendererFormat()
+        format.documentInfo = pdfMetaData as [String: Any]
+        
+        // A4 size: 595.2 x 841.8 points
+        let pageWidth: CGFloat = 595.2
+        let pageHeight: CGFloat = 841.8
+        let pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+        
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect, format: format)
+        
+        let data = renderer.pdfData { context in
+            var yOffset: CGFloat = 60
+            let margin: CGFloat = 40
+            let contentWidth = pageWidth - (margin * 2)
+            
+            // Helper to start new page if needed
+            func startNewPageIfNeeded(requiredSpace: CGFloat) {
+                if yOffset + requiredSpace > pageHeight - margin {
+                    context.beginPage()
+                    yOffset = 60
+                }
+            }
+            
+            context.beginPage()
+            
+            // Title
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 28),
+                .foregroundColor: UIColor.black
+            ]
+            let title = "Migraine Report"
+            title.draw(at: CGPoint(x: margin, y: yOffset), withAttributes: titleAttributes)
+            yOffset += 40
+            
+            // Date range
+            let subtitleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 14),
+                .foregroundColor: UIColor.darkGray
+            ]
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .medium
+            if let firstLog = logs.last, let lastLog = logs.first {
+                let dateRange = "From \(dateFormatter.string(from: firstLog.timestamp)) to \(dateFormatter.string(from: lastLog.timestamp))"
+                dateRange.draw(at: CGPoint(x: margin, y: yOffset), withAttributes: subtitleAttributes)
+            } else {
+                "Generated \(dateFormatter.string(from: Date()))".draw(at: CGPoint(x: margin, y: yOffset), withAttributes: subtitleAttributes)
+            }
+            yOffset += 40
+            
+            // Summary Section
+            startNewPageIfNeeded(requiredSpace: 300)
+            yOffset = drawSectionHeader("Summary", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 10
+            
+            // Summary metrics
+            let summaryMetrics: [(String, String)] = [
+                ("Total Recorded Migraines", "\(logs.count)"),
+                ("Average Intensity", averageIntensity != nil ? String(format: "%.1f/10", averageIntensity! * 10) : "—"),
+                ("Peak Onset Hour", mostCommonOnsetHourDisplay ?? "—"),
+                ("Most Common Weekday", mostCommonWeekdayString ?? "—")
+            ]
+            
+            for (label, value) in summaryMetrics {
+                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+            }
+            
+            yOffset += 20
+            
+            // Sleep Section
+            startNewPageIfNeeded(requiredSpace: 200)
+            yOffset = drawSectionHeader("Sleep", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 10
+            
+            let sleepMetrics: [(String, String)] = [
+                ("Average Bed Time", averageBedtimeString ?? "—"),
+                ("Average Wake Time", averageWakeTimeString ?? "—"),
+                ("Average Total Sleep", averageTotalSleepString ?? "—")
+            ]
+            
+            for (label, value) in sleepMetrics {
+                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+            }
+            
+            yOffset += 20
+            
+            // Heart Section
+            startNewPageIfNeeded(requiredSpace: 150)
+            yOffset = drawSectionHeader("Heart", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 10
+            
+            let heartMetrics: [(String, String)] = [
+                ("Average HRV", averageHRVString ?? "—"),
+                ("Average Resting HR", averageRestingHRString ?? "—")
+            ]
+            
+            for (label, value) in heartMetrics {
+                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+            }
+            
+            yOffset += 20
+            
+            // Activity Section
+            startNewPageIfNeeded(requiredSpace: 150)
+            yOffset = drawSectionHeader("Activity", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 10
+            
+            let activityMetrics: [(String, String)] = [
+                ("Average Steps", averageStepsString ?? "—"),
+                ("Movement State", medianMovementString ?? "—")
+            ]
+            
+            for (label, value) in activityMetrics {
+                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+            }
+            
+            yOffset += 20
+            
+            // Cycle Tracking Section
+            let phases = logs.compactMap { $0.cyclePhase }
+            if !phases.isEmpty {
+                startNewPageIfNeeded(requiredSpace: 100)
+                yOffset = drawSectionHeader("Cycle Tracking", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 10
+                
+                let commonPhase = mode(phases) ?? "—"
+                yOffset = drawMetricRow(label: "Common Cycle Phase", value: commonPhase, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+                
+                yOffset += 20
+            }
+            
+            // Environment Section
+            startNewPageIfNeeded(requiredSpace: 200)
+            yOffset = drawSectionHeader("Environment", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 10
+            
+            let envMetrics: [(String, String)] = [
+                ("Median Conditions", medianConditionString ?? "—"),
+                ("Temperature Range", temperatureRangeString ?? "—"),
+                ("Pressure Range", pressureRangeString ?? "—")
+            ]
+            
+            for (label, value) in envMetrics {
+                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 5
+            }
+            
+            yOffset += 30
+            
+            // Migraine Log Section
+            context.beginPage()
+            yOffset = 60
+            yOffset = drawSectionHeader("Migraine Log", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset += 20
+            
+            // Sort logs chronologically (oldest to newest for medical records)
+            let sortedLogs = logs.sorted { $0.timestamp < $1.timestamp }
+            
+            for (index, log) in sortedLogs.enumerated() {
+                let logHeight = estimateLogHeight(log: log, width: contentWidth)
+                startNewPageIfNeeded(requiredSpace: logHeight + 40)
+                
+                // Log entry header
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                dateFormatter.timeStyle = .short
+                
+                let logHeader = "Entry #\(index + 1) — \(dateFormatter.string(from: log.timestamp))"
+                yOffset = drawLogHeader(logHeader, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset += 15
+                
+                // Intensity
+                let intensityDesc = intensityDescription(for: log.intensity)
+                yOffset = drawLogDetail(label: "Intensity", value: "\(String(format: "%.1f", log.intensity * 10))/10 (\(intensityDesc))", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                yOffset += 5
+                
+                // Pain details
+                if let painDesc = log.painDescription {
+                    yOffset = drawLogDetail(label: "Pain Type", value: painDesc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let painLoc = log.painLocation {
+                    yOffset = drawLogDetail(label: "Pain Location", value: painLoc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let onset = log.onsetPattern {
+                    yOffset = drawLogDetail(label: "Onset Pattern", value: onset, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let mood = log.mood {
+                    yOffset = drawLogDetail(label: "Mood", value: mood, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Sensory symptoms
+                let sensorySymptoms = buildSymptomList(log: log)
+                if !sensorySymptoms.isEmpty {
+                    yOffset = drawLogDetail(label: "Symptoms", value: sensorySymptoms.joined(separator: ", "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Sleep
+                if let sleepDuration = log.sleepDuration {
+                    let hours = sleepDuration / 3600.0
+                    yOffset = drawLogDetail(label: "Sleep Duration", value: String(format: "%.1f hours", hours), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Heart metrics
+                if let hrv = log.heartRateVariability {
+                    yOffset = drawLogDetail(label: "HRV", value: String(format: "%.0f ms", hrv), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let rhr = log.restingHeartRate {
+                    yOffset = drawLogDetail(label: "Resting HR", value: String(format: "%.0f bpm", rhr), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Cycle phase
+                if let phase = log.cyclePhase {
+                    yOffset = drawLogDetail(label: "Cycle Phase", value: phase, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Activity
+                yOffset = drawLogDetail(label: "Steps", value: "\(log.stepCount)", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                yOffset += 5
+                
+                // Weather
+                if log.temperature.isFinite {
+                    yOffset = drawLogDetail(label: "Temperature", value: String(format: "%.1f°C", log.temperature), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let pressure = log.pressure {
+                    yOffset = drawLogDetail(label: "Pressure", value: String(format: "%.1f hPa", pressure), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                if let condition = log.weatherCondition {
+                    yOffset = drawLogDetail(label: "Weather", value: condition.replacingOccurrences(of: "_", with: " ").capitalized, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                // Calendar context
+                if let calendarContext = log.calendarContext {
+                    let lines = calendarContext.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    if !lines.isEmpty {
+                        yOffset = drawLogDetail(label: "Calendar Events", value: lines.joined(separator: "; "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                        yOffset += 5
+                    }
+                }
+                
+                // Location
+                if let lat = log.locationLatitude, let lon = log.locationLongitude {
+                    yOffset = drawLogDetail(label: "Location", value: String(format: "%.4f, %.4f", lat, lon), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
+                
+                yOffset += 15
+            }
+        }
+        
+        // Save PDF to temporary directory
+        let fileName = "Calmpath_Migraine_Report_\(Date().timeIntervalSince1970).pdf"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
+        do {
+            try data.write(to: url)
+            return url
+        } catch {
+            print("Failed to save PDF: \(error)")
+            return nil
+        }
+    }
+    
+    // MARK: - Drawing Helpers
+    
+    private func drawSectionHeader(_ text: String, at point: CGPoint, width: CGFloat) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 20),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let rect = CGRect(x: point.x, y: point.y, width: width, height: 30)
+        text.draw(in: rect, withAttributes: attributes)
+        
+        // Draw separator line
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: point.x, y: point.y + 28))
+        path.addLine(to: CGPoint(x: point.x + width, y: point.y + 28))
+        UIColor.black.setStroke()
+        path.lineWidth = 1
+        path.stroke()
+        
+        return point.y + 35
+    }
+    
+    private func drawMetricRow(label: String, value: String, at point: CGPoint, width: CGFloat) -> CGFloat {
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12),
+            .foregroundColor: UIColor.darkGray
+        ]
+        
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let labelWidth = width * 0.5
+        let valueWidth = width * 0.5
+        
+        label.draw(in: CGRect(x: point.x, y: point.y, width: labelWidth, height: 20), withAttributes: labelAttributes)
+        value.draw(in: CGRect(x: point.x + labelWidth, y: point.y, width: valueWidth, height: 20), withAttributes: valueAttributes)
+        
+        return point.y + 20
+    }
+    
+    private func drawLogHeader(_ text: String, at point: CGPoint, width: CGFloat) -> CGFloat {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 14),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let rect = CGRect(x: point.x, y: point.y, width: width, height: 20)
+        text.draw(in: rect, withAttributes: attributes)
+        
+        return point.y + 22
+    }
+    
+    private func drawLogDetail(label: String, value: String, at point: CGPoint, width: CGFloat) -> CGFloat {
+        let labelAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 10),
+            .foregroundColor: UIColor.darkGray
+        ]
+        
+        let valueAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 10),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let combinedText = "\(label): \(value)"
+        let attributedString = NSMutableAttributedString(string: combinedText)
+        attributedString.addAttributes(labelAttributes, range: NSRange(location: 0, length: label.count + 1))
+        attributedString.addAttributes(valueAttributes, range: NSRange(location: label.count + 2, length: value.count))
+        
+        let rect = CGRect(x: point.x, y: point.y, width: width, height: 1000)
+        let boundingRect = attributedString.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin], context: nil)
+        
+        attributedString.draw(in: rect)
+        
+        return point.y + ceil(boundingRect.height) + 2
+    }
+    
+    private func estimateLogHeight(log: MigraineLog, width: CGFloat) -> CGFloat {
+        var height: CGFloat = 50 // Base height for header and intensity
+        
+        if log.painDescription != nil { height += 15 }
+        if log.painLocation != nil { height += 15 }
+        if log.onsetPattern != nil { height += 15 }
+        if log.mood != nil { height += 15 }
+        
+        let symptoms = buildSymptomList(log: log)
+        if !symptoms.isEmpty { height += 20 }
+        
+        if log.sleepDuration != nil { height += 15 }
+        if log.heartRateVariability != nil { height += 15 }
+        if log.restingHeartRate != nil { height += 15 }
+        if log.cyclePhase != nil { height += 15 }
+        
+        height += 15 // Steps
+        height += 15 // Temperature
+        if log.pressure != nil { height += 15 }
+        if log.weatherCondition != nil { height += 15 }
+        if log.calendarContext != nil { height += 25 }
+        if log.locationLatitude != nil { height += 15 }
+        
+        return height
+    }
+    
+    private func buildSymptomList(log: MigraineLog) -> [String] {
+        var symptoms: [String] = []
+        
+        if log.lightSensitivity { symptoms.append("Light sensitivity") }
+        if log.soundSensitivity { symptoms.append("Sound sensitivity") }
+        if log.smellSensitivity { symptoms.append("Smell sensitivity") }
+        if log.motionSensitivity { symptoms.append("Motion sensitivity") }
+        if log.eyeTearing { symptoms.append("Eye tearing") }
+        if log.eyeDrooping { symptoms.append("Eye drooping") }
+        if log.nasalCongestion { symptoms.append("Nasal congestion") }
+        if log.flushedFace { symptoms.append("Flushed face") }
+        if log.restlessness { symptoms.append("Restlessness") }
+        if log.auraZigzags { symptoms.append("Aura: zig-zags") }
+        if log.auraSparkles { symptoms.append("Aura: sparkles") }
+        if log.auraBlockedVision { symptoms.append("Aura: blocked vision") }
+        if log.auraNumbness { symptoms.append("Aura: numbness") }
+        if log.auraSpeechTrouble { symptoms.append("Aura: speech trouble") }
+        if log.auraDistortedShapes { symptoms.append("Aura: distorted shapes") }
+        if log.prodromeCravings { symptoms.append("Prodrome: cravings") }
+        if log.prodromeYawning { symptoms.append("Prodrome: yawning") }
+        if log.prodromePeeing { symptoms.append("Prodrome: frequent urination") }
+        if log.prodromeNeckStiffness { symptoms.append("Prodrome: neck stiffness") }
+        if log.prodromeMoodChange { symptoms.append("Prodrome: mood change") }
+        if log.prodromeEnergyChange { symptoms.append("Prodrome: energy change") }
+        
+        return symptoms
+    }
+    
+    private func intensityDescription(for intensity: Double) -> String {
+        switch intensity {
+        case 0..<0.2:
+            return "Very Mild"
+        case 0.2..<0.4:
+            return "Mild"
+        case 0.4..<0.6:
+            return "Moderate"
+        case 0.6..<0.8:
+            return "Severe"
+        default:
+            return "Very Severe"
+        }
+    }
+    
+    // MARK: - Analytics Properties (copied from MeView)
+    
+    private var averageIntensity: Double? {
+        guard !logs.isEmpty else { return nil }
+        let sum = logs.reduce(0.0) { $0 + $1.intensity }
+        return sum / Double(logs.count)
+    }
+    
+    private func mode<T: Hashable>(_ values: [T]) -> T? {
+        guard !values.isEmpty else { return nil }
+        let counts = values.reduce(into: [T: Int]()) { $0[$1, default: 0] += 1 }
+        return counts.max { a, b in
+            if a.value == b.value { return String(describing: a.key) < String(describing: b.key) }
+            return a.value < b.value
+        }?.key
+    }
+    
+    private func secondsIntoDay(_ date: Date) -> Double {
+        let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+        let h = comps.hour ?? 0
+        let m = comps.minute ?? 0
+        let s = comps.second ?? 0
+        return Double(h * 3600 + m * 60 + s)
+    }
+    
+    private func timeString(fromSeconds seconds: Double) -> String {
+        let base = Calendar.current.startOfDay(for: Date())
+        let date = base.addingTimeInterval(seconds.truncatingRemainder(dividingBy: 86400))
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private var mostCommonOnsetHour: (hour: Int, count: Int)? {
+        guard !logs.isEmpty else { return nil }
+        var counts: [Int: Int] = [:]
+        for log in logs {
+            let h = Calendar.current.component(.hour, from: log.timestamp)
+            counts[h, default: 0] += 1
+        }
+        guard let best = counts.max(by: { a, b in
+            if a.value == b.value { return a.key > b.key }
+            return a.value < b.value
+        }) else { return nil }
+        return (best.key, best.value)
+    }
+    
+    private var mostCommonOnsetHourLabel: String? {
+        guard let best = mostCommonOnsetHour else { return nil }
+        let base = Calendar.current.startOfDay(for: Date())
+        let date = Calendar.current.date(byAdding: .hour, value: best.hour, to: base) ?? base
+        let fmt = DateFormatter()
+        fmt.setLocalizedDateFormatFromTemplate("ha")
+        return fmt.string(from: date)
+    }
+    
+    private var mostCommonOnsetHourDisplay: String? {
+        guard let best = mostCommonOnsetHour, let label = mostCommonOnsetHourLabel else { return nil }
+        return "\(label) (\(best.count))"
+    }
+    
+    private var mostCommonWeekday: (weekday: Int, count: Int)? {
+        guard !logs.isEmpty else { return nil }
+        var counts: [Int: Int] = [:]
+        for log in logs {
+            let w = Calendar.current.component(.weekday, from: log.timestamp)
+            counts[w, default: 0] += 1
+        }
+        guard let best = counts.max(by: { a, b in
+            if a.value == b.value { return a.key > b.key }
+            return a.value < b.value
+        }) else { return nil }
+        return (best.key, best.value)
+    }
+    
+    private var mostCommonWeekdayString: String? {
+        guard let best = mostCommonWeekday else { return nil }
+        let symbols = DateFormatter().weekdaySymbols ?? []
+        let idx = max(1, min(7, best.weekday)) - 1
+        guard idx >= 0 && idx < symbols.count else { return nil }
+        return symbols[idx]
+    }
+    
+    private var averageBedtimeString: String? {
+        let times = logs.compactMap { $0.sleepStart }.map { secondsIntoDay($0) }
+        guard !times.isEmpty else { return nil }
+        let avg = times.reduce(0, +) / Double(times.count)
+        return timeString(fromSeconds: avg)
+    }
+    
+    private var averageWakeTimeString: String? {
+        let times = logs.compactMap { $0.sleepEnd }.map { secondsIntoDay($0) }
+        guard !times.isEmpty else { return nil }
+        let avg = times.reduce(0, +) / Double(times.count)
+        return timeString(fromSeconds: avg)
+    }
+    
+    private var averageTotalSleepString: String? {
+        let durations = logs.compactMap { $0.sleepDuration }
+        guard !durations.isEmpty else { return nil }
+        let avg = durations.reduce(0, +) / Double(durations.count)
+        return String(format: "%.1fh", avg / 3600.0)
+    }
+    
+    private var averageHRVString: String? {
+        let values = logs.compactMap { $0.heartRateVariability }
+        guard !values.isEmpty else { return nil }
+        let avg = values.reduce(0, +) / Double(values.count)
+        return String(format: "%.0f ms", avg)
+    }
+    
+    private var averageRestingHRString: String? {
+        let values = logs.compactMap { $0.restingHeartRate }
+        guard !values.isEmpty else { return nil }
+        let avg = values.reduce(0, +) / Double(values.count)
+        return String(format: "%.0f bpm", avg)
+    }
+    
+    private var averageStepsString: String? {
+        guard !logs.isEmpty else { return nil }
+        let avg = logs.map { Double($0.stepCount) }.reduce(0, +) / Double(logs.count)
+        return String(format: "%.0f", avg)
+    }
+    
+    private var medianConditionString: String? {
+        let values = logs.compactMap { $0.weatherCondition }
+        guard let m = mode(values) else { return nil }
+        return m.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+    
+    private var medianMovementString: String? {
+        let values = logs.compactMap { $0.movementState }
+        guard let m = mode(values) else { return nil }
+        return m.capitalized
+    }
+    
+    private var temperatureRangeString: String? {
+        let temps = logs.map { $0.temperature }.filter { $0.isFinite }
+        guard let minV = temps.min(), let maxV = temps.max() else { return nil }
+        return String(format: "%.0f–%.0f°C", minV, maxV)
+    }
+    
+    private var pressureRangeString: String? {
+        let pressures = logs.compactMap { $0.pressure }
+        guard let minV = pressures.min(), let maxV = pressures.max() else { return nil }
+        return String(format: "%.0f–%.0f hPa", minV, maxV)
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
     }
 }
 
