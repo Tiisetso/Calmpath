@@ -14,6 +14,7 @@ import CoreLocation
 import UIKit
 import CoreMotion
 import MapKit
+import EventKit
 
 // MARK: - Models
 
@@ -34,6 +35,8 @@ final class MigraineLog {
     var sleepDuration: Double? // seconds
     var movementState: String? // stationary, walking, running, cycling, automotive, unknown
     var movementConfidence: Int? // 0=low, 1=medium, 2=high
+    // Human-readable summary of relevant calendar events (titles and locations)
+    var calendarContext: String?
     
     var averageHeartRate: Double? // bpm (24h average)
     var maxHeartRate: Double? // bpm (24h max)
@@ -59,7 +62,8 @@ final class MigraineLog {
         restingHeartRate: Double? = nil,
         heartRateVariability: Double? = nil,
         locationLatitude: Double? = nil,
-        locationLongitude: Double? = nil
+        locationLongitude: Double? = nil,
+        calendarContext: String? = nil
     ) {
         self.timestamp = timestamp
         self.intensity = intensity
@@ -80,6 +84,7 @@ final class MigraineLog {
         self.maxHeartRate = maxHeartRate
         self.restingHeartRate = restingHeartRate
         self.heartRateVariability = heartRateVariability
+        self.calendarContext = calendarContext
     }
 }
 
@@ -598,6 +603,100 @@ final class MovementManager: ObservableObject {
     }
 }
 
+@MainActor
+final class CalendarManager: ObservableObject {
+    private let store = EKEventStore()
+
+    func ensureCalendarAuthorization() async -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        switch status {
+        case .authorized:
+            // Pre–iOS 17 full access
+            return true
+        case .notDetermined:
+            if #available(iOS 17.0, *) {
+                return await withCheckedContinuation { continuation in
+                    self.store.requestFullAccessToEvents { granted, _ in
+                        continuation.resume(returning: granted)
+                    }
+                }
+            } else {
+                return await withCheckedContinuation { continuation in
+                    self.store.requestAccess(to: .event) { granted, _ in
+                        continuation.resume(returning: granted)
+                    }
+                }
+            }
+        case .denied, .restricted:
+            return false
+        case .fullAccess:
+            return true
+        case .writeOnly:
+            // Write-only cannot read events; return false for our read use case
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
+    func fetchContextSummary(at date: Date) async -> String? {
+        // Only proceed if we have (or can obtain) authorization
+        guard await ensureCalendarAuthorization() else { return nil }
+
+        // Look back 3 days and forward 1 day to capture overlaps
+        let start = date.addingTimeInterval(-3 * 24 * 3600)
+        let end = date.addingTimeInterval(1 * 24 * 3600)
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let events = store.events(matching: predicate)
+
+        // Prefer events overlapping the migraine timestamp
+        let overlapping = events.filter { $0.startDate <= date && $0.endDate >= date }
+        if !overlapping.isEmpty {
+            let lines = overlapping.sorted { $0.startDate < $1.startDate }.map { summarize($0) }
+            return lines.joined(separator: "\n")
+        }
+
+        // Otherwise, take recent events that ended within the last 3 days, prioritizing longest duration
+        let recent = events.filter { $0.endDate <= date && $0.startDate >= start }
+        guard !recent.isEmpty else { return nil }
+        let top = recent.sorted { a, b in
+            let da = a.endDate.timeIntervalSince(a.startDate)
+            let db = b.endDate.timeIntervalSince(b.startDate)
+            if da == db { return a.endDate > b.endDate } // tie-break by recency
+            return da > db
+        }.prefix(3)
+        let lines = top.map { summarize($0) }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    private func summarize(_ event: EKEvent) -> String {
+        let rawTitle = (event.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = rawTitle.isEmpty ? "(No Title)" : rawTitle
+        if event.isAllDay {
+            return "\(title) (All Day)"
+        } else {
+            let duration = max(0, event.endDate.timeIntervalSince(event.startDate))
+            return "\(title) (\(formatDuration(duration)))"
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        // Format as Xm, Xh, Xh Ym, Xd, or Xd Yh depending on length
+        let totalMinutes = Int(seconds / 60)
+        if totalMinutes < 60 {
+            return "\(totalMinutes)m"
+        }
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours < 24 {
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        let days = hours / 24
+        let remHours = hours % 24
+        return remHours > 0 ? "\(days)d \(remHours)h" : "\(days)d"
+    }
+}
+
 // MARK: - Home View
 
 struct HomeView: View {
@@ -606,6 +705,7 @@ struct HomeView: View {
     @StateObject private var weatherManager = WeatherManager()
     @StateObject private var barometerManager = BarometerManager()
     @StateObject private var movementManager = MovementManager()
+    @StateObject private var calendarManager = CalendarManager()
     
     @State private var showingIntensitySlider = false
     @State private var intensity: Double = 0.5
@@ -726,6 +826,14 @@ struct HomeView: View {
             // Continue without movement state
         }
         
+        let calendarAuthorized = await calendarManager.ensureCalendarAuthorization()
+        if !calendarAuthorized {
+            permissionsMessage = "Calendar access is denied. To include calendar context in logs, allow Calendar access in Settings."
+            showOpenSettings = true
+            showPermissionsAlert = true
+            // Continue without calendar context
+        }
+        
         if let wkError = await weatherManager.testWeatherKitConnectivity(), weatherManager.isLikelyJWTError(wkError) {
             permissionsMessage = "WeatherKit isn’t authorized for this build (JWT failed). Try uninstalling the app, cleaning the build, and ensure the WeatherKit capability is enabled for the exact bundle identifier and signing team, then run again."
             showOpenSettings = false
@@ -767,6 +875,14 @@ struct HomeView: View {
             showOpenSettings = true
             showPermissionsAlert = true
             // Continue to allow the user to provide more info; logging will still fall back on temperature
+        }
+        
+        let calendarAuthorized = await calendarManager.ensureCalendarAuthorization()
+        if !calendarAuthorized {
+            permissionsMessage = "Calendar access is denied. To include calendar context in logs, allow Calendar access in Settings."
+            showOpenSettings = true
+            showPermissionsAlert = true
+            // Continue to allow the user to provide more info; logging will still proceed without calendar context
         }
         
         if let wkError = await weatherManager.testWeatherKitConnectivity(), weatherManager.isLikelyJWTError(wkError) {
@@ -817,6 +933,9 @@ struct HomeView: View {
         if !hasNonEmptyString(for: "NSMotionUsageDescription") {
             missing.append("NSMotionUsageDescription")
         }
+        if !hasNonEmptyString(for: "NSCalendarsUsageDescription") {
+            missing.append("NSCalendarsUsageDescription")
+        }
         return missing
     }
     
@@ -847,6 +966,8 @@ struct HomeView: View {
             let restingHeartRate: Double?
             let heartRateVariability: Double?
             
+            let calendarContext: String?
+            
             if isPreview {
                 // Mock data for previews
                 stepCount = 1234
@@ -861,6 +982,8 @@ struct HomeView: View {
                 sleepDuration = sleepStart != nil ? now.timeIntervalSince(sleepStart!) : nil
                 movementState = "stationary"
                 movementConfidence = 2
+                
+                calendarContext = nil
                 
                 averageHeartRate = 72
                 maxHeartRate = 134
@@ -913,6 +1036,8 @@ struct HomeView: View {
                     locationLatitude = loc.coordinate.latitude
                     locationLongitude = loc.coordinate.longitude
                 }
+                
+                calendarContext = await calendarManager.fetchContextSummary(at: Date())
             }
             
             // Create migraine log
@@ -935,7 +1060,8 @@ struct HomeView: View {
                 restingHeartRate: restingHeartRate,
                 heartRateVariability: heartRateVariability,
                 locationLatitude: locationLatitude,
-                locationLongitude: locationLongitude
+                locationLongitude: locationLongitude,
+                calendarContext: calendarContext
             )
             
             modelContext.insert(log)
@@ -1081,7 +1207,7 @@ struct LogsView: View {
                         Text("Tap the button on the Home tab to log a migraine.")
                     }
                 } else {
-                    ForEach(logs.indices, id: \ .self) { index in
+                    ForEach(logs.indices, id: \.self) { index in
                         let log = logs[index]
                         NavigationLink {
                             MigraineDetailView(log: log)
@@ -1246,19 +1372,21 @@ struct MigraineDetailView: View {
                 .padding(.vertical, 8)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Spacer()
-                        Text(String(format: "%.1f", log.intensity * 10))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .monospacedDigit()
+                    if #available(iOS 17.0, *) {
+                        Slider(value: $log.intensity, in: 0...1)
+                            .tint(intensityColor)
+                            .onChange(of: log.intensity) { _, _ in
+                                try? modelContext.save()
+                            }
+                            .padding(.horizontal, 16)
+                    } else {
+                        Slider(value: $log.intensity, in: 0...1)
+                            .tint(intensityColor)
+                            .onChange(of: log.intensity) { _ in
+                                try? modelContext.save()
+                            }
+                            .padding(.horizontal, 16)
                     }
-                    Slider(value: $log.intensity, in: 0...1)
-                        .tint(intensityColor)
-                        .onChange(of: log.intensity) {
-                            try? modelContext.save()
-                        }
-                        .padding(.horizontal, 16)
                     HStack {
                         Text("Mild")
                             .font(.caption)
@@ -1381,6 +1509,29 @@ struct MigraineDetailView: View {
                         Spacer()
                         Text(state.capitalized)
                             .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // Build a list of calendar context lines and show a count in the header
+            let calendarLines: [String] = {
+                guard let ctx = log.calendarContext else { return [] }
+                return ctx
+                    .components(separatedBy: "\n")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            }()
+            Section("Calendar Context\(calendarLines.isEmpty ? "" : " (\(calendarLines.count))")") {
+                if calendarLines.isEmpty {
+                    Text("No relevant calendar events recorded")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(Array(calendarLines.enumerated()), id: \.offset) { _, line in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.secondary)
+                            Text(line)
+                        }
                     }
                 }
             }

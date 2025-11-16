@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+    <!-- HealthKit (read access) -->
+    <key>NSHealthShareUsageDescription</key>
+    <string>Calmpath reads your Health data (steps, sleep, and heart metrics) to enrich migraine logs and insights.</string>
+
+    <!-- Location While In Use -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Calmpath uses your location to fetch local weather and optionally record where migraines occur.</string>
+
+    <!-- Motion & Fitness -->
+    <key>NSMotionUsageDescription</key>
+    <string>Calmpath uses Motion &amp; Fitness to detect your movement state (e.g., walking or stationary) around migraine onset.</string>
+
+    <!-- Calendars (EventKit) -->
+    <key>NSCalendarsUsageDescription</key>
+    <string>Calmpath reads your calendar to include overlapping or recent events (with location) in migraine logs.</string>
+</dict>
 </plist>
