@@ -13,6 +13,7 @@ import WeatherKit
 import CoreLocation
 import UIKit
 import CoreMotion
+import MapKit
 
 // MARK: - Models
 
@@ -25,6 +26,8 @@ final class MigraineLog {
     var pressure: Double? // in hPa (millibars)
     var humidity: Double? // 0.0 - 1.0 fraction
     var weatherCondition: String? // e.g., clear, rain, cloudy
+    var locationLatitude: Double?
+    var locationLongitude: Double?
     // var moonPhase: String? // e.g., waxingGibbous
     var sleepStart: Date?
     var sleepEnd: Date?
@@ -45,7 +48,9 @@ final class MigraineLog {
         sleepEnd: Date? = nil,
         sleepDuration: Double? = nil,
         movementState: String? = nil,
-        movementConfidence: Int? = nil
+        movementConfidence: Int? = nil,
+        locationLatitude: Double? = nil,
+        locationLongitude: Double? = nil
     ) {
         self.timestamp = timestamp
         self.intensity = intensity
@@ -54,6 +59,8 @@ final class MigraineLog {
         self.pressure = pressure
         self.humidity = humidity
         self.weatherCondition = weatherCondition
+        self.locationLatitude = locationLatitude
+        self.locationLongitude = locationLongitude
         // self.moonPhase = moonPhase
         self.sleepStart = sleepStart
         self.sleepEnd = sleepEnd
@@ -719,6 +726,9 @@ struct HomeView: View {
         defer { isLoggingMigraine = false }
         
         do {
+            var locationLatitude: Double? = nil
+            var locationLongitude: Double? = nil
+            
             let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             
             let stepCount: Int
@@ -780,6 +790,10 @@ struct HomeView: View {
                     movementState = nil
                     movementConfidence = nil
                 }
+                if let loc = try? await weatherManager.requestOneLocation() {
+                    locationLatitude = loc.coordinate.latitude
+                    locationLongitude = loc.coordinate.longitude
+                }
             }
             
             // Create migraine log
@@ -796,7 +810,9 @@ struct HomeView: View {
                 sleepEnd: sleepEnd,
                 sleepDuration: sleepDuration,
                 movementState: movementState,
-                movementConfidence: movementConfidence
+                movementConfidence: movementConfidence,
+                locationLatitude: locationLatitude,
+                locationLongitude: locationLongitude
             )
             
             modelContext.insert(log)
@@ -1194,6 +1210,15 @@ struct MigraineDetailView: View {
                 }
             }
             
+            Section("Location") {
+                if let lat = log.locationLatitude, let lon = log.locationLongitude {
+                    LocationMapView(latitude: lat, longitude: lon)
+                } else {
+                    Text("No location recorded")
+                        .foregroundColor(.secondary)
+                }
+            }
+            
             Section("Sleep") {
                 if let start = log.sleepStart, let end = log.sleepEnd, let duration = log.sleepDuration {
                     HStack {
@@ -1251,6 +1276,26 @@ struct MigraineDetailView: View {
         default:
             return .red
         }
+    }
+}
+
+struct LocationMapView: View {
+    let latitude: Double
+    let longitude: Double
+
+    var body: some View {
+        let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+        Map(initialPosition: .region(region)) {
+            Marker("Migraine", coordinate: coordinate)
+        }
+        .frame(height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .allowsHitTesting(false)
+        .accessibilityLabel("Approximate location")
     }
 }
 
@@ -1425,3 +1470,4 @@ struct ContentView: View {
     ContentView()
         .modelContainer(for: MigraineLog.self, inMemory: true)
 }
+
