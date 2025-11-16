@@ -21,6 +21,7 @@ import EventKit
 @Model
 final class MigraineLog {
     var timestamp: Date
+    var duration: TimeInterval? // in seconds
     var intensity: Double // 0.0 to 1.0
     var stepCount: Int
     var temperature: Double // in Celsius
@@ -81,6 +82,7 @@ final class MigraineLog {
     
     init(
         timestamp: Date,
+        duration: TimeInterval? = nil,
         intensity: Double = 0.5,
         stepCount: Int = 0,
         temperature: Double = 0.0,
@@ -134,6 +136,7 @@ final class MigraineLog {
         calendarContext: String? = nil
     ) {
         self.timestamp = timestamp
+        self.duration = duration
         self.intensity = intensity
         self.stepCount = stepCount
         self.temperature = temperature
@@ -1561,6 +1564,14 @@ struct MigraineDetailView: View {
                     Spacer()
                     Text(log.timestamp, style: .time)
                 }
+                
+                // Duration picker
+                HStack {
+                    Text("Duration")
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    DurationPickerButton(log: log, modelContext: modelContext)
+                }
             }
             
             Section("Intensity") {
@@ -1719,7 +1730,7 @@ struct MigraineDetailView: View {
                         }
                     }
                 } label: {
-                    Text("Describe Your Experience")
+                    Text("Describe your Experience")
                 }
                 .onChange(of: log.isExperienceSectionExpanded) { _ in
                     try? modelContext.save()
@@ -2151,6 +2162,177 @@ struct LocationMapView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .allowsHitTesting(false)
         .accessibilityLabel("Approximate location")
+    }
+}
+
+struct DurationPickerButton: View {
+    @Bindable var log: MigraineLog
+    var modelContext: ModelContext
+    @State private var showingPicker = false
+    @State private var selectedDays: Int = 0
+    @State private var selectedHours: Int = 0
+    @State private var selectedMinutes: Int = 0
+    
+    var body: some View {
+        Button(action: {
+            // Initialize picker values from current duration
+            if let duration = log.duration {
+                let totalMinutes = Int(duration / 60)
+                selectedDays = totalMinutes / (24 * 60)
+                selectedHours = (totalMinutes % (24 * 60)) / 60
+                selectedMinutes = totalMinutes % 60
+            } else {
+                selectedDays = 0
+                selectedHours = 0
+                selectedMinutes = 0
+            }
+            showingPicker = true
+        }) {
+            if let duration = log.duration {
+                Text(formatDuration(duration))
+            } else {
+                Text("Not set")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .sheet(isPresented: $showingPicker) {
+            NavigationStack {
+                VStack(spacing: 20) {
+                    Text("How long did it last?")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .padding(.top, 40)
+                    
+                    HStack(spacing: 20) {
+                        // Days picker
+                        VStack {
+                            Text("Days")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Picker("Days", selection: $selectedDays) {
+                                ForEach(0..<8) { day in
+                                    Text("\(day)").tag(day)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(width: 80, height: 150)
+                            .clipped()
+                        }
+                        
+                        // Hours picker
+                        VStack {
+                            Text("Hours")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Picker("Hours", selection: $selectedHours) {
+                                ForEach(0..<24) { hour in
+                                    Text("\(hour)").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(width: 80, height: 150)
+                            .clipped()
+                        }
+                        
+                        // Minutes picker
+                        VStack {
+                            Text("Minutes")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Picker("Minutes", selection: $selectedMinutes) {
+                                ForEach(0..<60) { minute in
+                                    Text("\(minute)").tag(minute)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(width: 80, height: 150)
+                            .clipped()
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            // Calculate total duration in seconds
+                            let totalSeconds = TimeInterval(
+                                selectedDays * 24 * 3600 +
+                                selectedHours * 3600 +
+                                selectedMinutes * 60
+                            )
+                            
+                            if totalSeconds > 0 {
+                                log.duration = totalSeconds
+                            } else {
+                                log.duration = nil
+                            }
+                            
+                            try? modelContext.save()
+                            showingPicker = false
+                        }) {
+                            Text("Save")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color(red: 0.53, green: 0.81, blue: 0.92))
+                                .cornerRadius(12)
+                        }
+                        
+                        if log.duration != nil {
+                            Button(action: {
+                                log.duration = nil
+                                try? modelContext.save()
+                                showingPicker = false
+                            }) {
+                                Text("Clear Duration")
+                                    .font(.headline)
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(12)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            showingPicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+    
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = Int(seconds / 60)
+        
+        if totalMinutes < 60 {
+            return "\(totalMinutes)m"
+        }
+        
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes % (24 * 60)) / 60
+        let minutes = totalMinutes % 60
+        
+        var parts: [String] = []
+        if days > 0 {
+            parts.append("\(days)d")
+        }
+        if hours > 0 {
+            parts.append("\(hours)h")
+        }
+        if minutes > 0 {
+            parts.append("\(minutes)m")
+        }
+        
+        return parts.isEmpty ? "0m" : parts.joined(separator: " ")
     }
 }
 
