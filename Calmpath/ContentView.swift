@@ -509,6 +509,8 @@ struct HomeView: View {
     @State private var showPermissionsAlert = false
     @State private var permissionsMessage = ""
     @State private var showOpenSettings = false
+
+    @AppStorage("homeCircleHeightFactor") private var homeCircleHeightFactor: Double = 0.71
     
     var body: some View {
         GeometryReader { geometry in
@@ -533,7 +535,7 @@ struct HomeView: View {
                         }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: geometry.size.height / 2)
+                .frame(height: geometry.size.height * homeCircleHeightFactor)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if isLoggingMigraine { return }
@@ -940,16 +942,20 @@ struct LogsView: View {
                         Text("Tap the button on the Home tab to log a migraine.")
                     }
                 } else {
-                    ForEach(logs) { log in
+                    ForEach(logs.indices, id: \ .self) { index in
+                        let log = logs[index]
                         NavigationLink {
                             MigraineDetailView(log: log)
                         } label: {
                             MigraineLogRow(log: log)
                         }
+                        .listRowSeparator(index == 0 ? .hidden : .visible, edges: .top)
+                        .listRowSeparator(index == logs.count - 1 ? .hidden : .visible, edges: .bottom)
                     }
                     .onDelete(perform: deleteLogs)
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Logs")
             .toolbar {
                 if !logs.isEmpty {
@@ -1011,9 +1017,15 @@ struct MigraineLogRow: View {
                     }
                     
                     if let cond = log.weatherCondition {
-                        Image(systemName: weatherSymbol(for: cond))
-                            .foregroundColor(.secondary)
-                            .imageScale(.small)
+                        HStack(spacing: 4) {
+                            Image(systemName: weatherSymbol(for: cond))
+                                .imageScale(.small)
+                            if log.temperature.isFinite {
+                                Text(String(format: "%.0f°C", log.temperature))
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     }
                 }
             }
@@ -1050,7 +1062,8 @@ struct MigraineLogRow: View {
 }
 
 struct MigraineDetailView: View {
-    let log: MigraineLog
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var log: MigraineLog
     
     var body: some View {
         List {
@@ -1090,31 +1103,37 @@ struct MigraineDetailView: View {
                     Text(intensityDescription)
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                    
+                }
+                .padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                            .foregroundColor(.secondary)
+                        Text("Adjust Intensity")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(String(format: "%.1f", log.intensity * 10))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $log.intensity, in: 0...1)
+                        .tint(intensityColor)
+                        .onChange(of: log.intensity) {
+                            try? modelContext.save()
+                        }
                     HStack {
                         Text("Mild")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color.secondary.opacity(0.2))
-                                    .frame(height: 4)
-                                
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(intensityColor)
-                                    .frame(width: geometry.size.width * log.intensity, height: 4)
-                            }
-                        }
-                        .frame(height: 4)
-                        
+                        Spacer()
                         Text("Severe")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
-                .padding(.vertical, 8)
             }
             
             Section("Health Data") {
@@ -1248,6 +1267,20 @@ struct MeView: View {
         return sum / Double(logs.count)
     }
 
+    private var averageIntensityColor: Color {
+        guard let avg = averageIntensity else { return Color.gray.opacity(0.6) }
+        switch avg {
+        case 0..<0.3:
+            return .green
+        case 0.3..<0.5:
+            return .yellow
+        case 0.5..<0.7:
+            return .orange
+        default:
+            return .red
+        }
+    }
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
@@ -1282,7 +1315,7 @@ struct MeView: View {
                         // Average Intensity card (right)
                         ZStack {
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
+                                .fill(averageIntensityColor)
                                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                             VStack(spacing: 12) {
                                 HStack(spacing: 8) {
@@ -1328,6 +1361,8 @@ struct MeView: View {
 }
 
 struct SettingsView: View {
+    @AppStorage("homeCircleHeightFactor") private var homeCircleHeightFactor: Double = 0.71
+
     private var buildNumber: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
     }
@@ -1340,6 +1375,21 @@ struct SettingsView: View {
                         Text("Build Number")
                         Spacer()
                         Text(buildNumber)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Section("Home Button Position") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Vertical Position")
+                            Spacer()
+                            Text(String(format: "%.2f", homeCircleHeightFactor))
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $homeCircleHeightFactor, in: 0.6...1.2, step: 0.01)
+                        Text("Lower values move the button up; higher values move it down.")
+                            .font(.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
