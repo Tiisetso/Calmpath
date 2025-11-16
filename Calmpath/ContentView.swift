@@ -1290,7 +1290,7 @@ struct LocationMapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
         )
         Map(initialPosition: .region(region)) {
-            Marker("Migraine", coordinate: coordinate)
+            Marker(String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude), coordinate: coordinate)
         }
         .frame(height: 180)
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -1362,7 +1362,7 @@ struct MeView: View {
                                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                             VStack(spacing: 12) {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "gauge")
+                                    Image(systemName: "gearshape")
                                         .foregroundColor(.white)
                                     Text("Average Intensity")
                                         .font(.headline)
@@ -1384,13 +1384,13 @@ struct MeView: View {
                     Spacer()
                 }
                 .padding()
-                .navigationTitle("Me")
+                .navigationTitle("Analytics")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             showingSettings = true
                         } label: {
-                            Image(systemName: "gearshape.fill")
+                            Image(systemName: "gearshape")
                         }
                         .accessibilityLabel("Settings")
                     }
@@ -1450,7 +1450,7 @@ struct ContentView: View {
         TabView {
             HomeView()
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Record", systemImage: "largecircle.fill.circle")
                 }
             
             LogsView()
@@ -1460,7 +1460,7 @@ struct ContentView: View {
             
             MeView()
                 .tabItem {
-                    Label("Me", systemImage: "person.crop.circle.fill")
+                    Label("Analytics", systemImage: "person.crop.circle.fill")
                 }
         }
     }
