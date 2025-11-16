@@ -42,6 +42,7 @@ final class MigraineLog {
     var maxHeartRate: Double? // bpm (24h max)
     var restingHeartRate: Double? // bpm (most recent)
     var heartRateVariability: Double? // ms (SDNN average over 24h)
+    var cyclePhase: String? // e.g., menstruation, ovulation, luteal, follicular
     
     init(
         timestamp: Date,
@@ -61,6 +62,7 @@ final class MigraineLog {
         maxHeartRate: Double? = nil,
         restingHeartRate: Double? = nil,
         heartRateVariability: Double? = nil,
+        cyclePhase: String? = nil,
         locationLatitude: Double? = nil,
         locationLongitude: Double? = nil,
         calendarContext: String? = nil
@@ -84,6 +86,7 @@ final class MigraineLog {
         self.maxHeartRate = maxHeartRate
         self.restingHeartRate = restingHeartRate
         self.heartRateVariability = heartRateVariability
+        self.cyclePhase = cyclePhase
         self.calendarContext = calendarContext
     }
 }
@@ -104,8 +107,14 @@ class HealthKitManager: ObservableObject {
         let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
         let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
         let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        let bleedingType = HKObjectType.categoryType(forIdentifier: .menstrualFlow)!
+        let ovulationTestType = HKObjectType.categoryType(forIdentifier: .ovulationTestResult)!
+        let cervicalMucusType = HKObjectType.categoryType(forIdentifier: .cervicalMucusQuality)!
+        let sexualActivityType = HKObjectType.categoryType(forIdentifier: .sexualActivity)!
+        let intermenstrualBleedingType = HKObjectType.categoryType(forIdentifier: .intermenstrualBleeding)!
+        // let menstrualSymptomsType = HKObjectType.categoryType(forIdentifier: .menstruation)!
         
-        let typesToRead: Set<HKObjectType> = [stepType, sleepType, hrType, rhrType, hrvType]
+        let typesToRead: Set<HKObjectType> = [stepType, sleepType, hrType, rhrType, hrvType, bleedingType, ovulationTestType, cervicalMucusType, sexualActivityType, intermenstrualBleedingType]
         
         try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
     }
@@ -166,9 +175,15 @@ class HealthKitManager: ObservableObject {
         let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
         let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
         let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        let bleedingType = HKObjectType.categoryType(forIdentifier: .menstrualFlow)!
+        let ovulationTestType = HKObjectType.categoryType(forIdentifier: .ovulationTestResult)!
+        let cervicalMucusType = HKObjectType.categoryType(forIdentifier: .cervicalMucusQuality)!
+        let sexualActivityType = HKObjectType.categoryType(forIdentifier: .sexualActivity)!
+        let intermenstrualBleedingType = HKObjectType.categoryType(forIdentifier: .intermenstrualBleeding)!
+        // let menstrualSymptomsType = HKObjectType.categoryType(forIdentifier: .menstruation)!
         
         let requestStatus = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKAuthorizationRequestStatus, Error>) in
-            healthStore.getRequestStatusForAuthorization(toShare: [], read: [stepType, sleepType, hrType, rhrType, hrvType]) { status, error in
+            healthStore.getRequestStatusForAuthorization(toShare: [], read: [stepType, sleepType, hrType, rhrType, hrvType, bleedingType, ovulationTestType, cervicalMucusType, sexualActivityType, intermenstrualBleedingType]) { status, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else {
@@ -337,6 +352,53 @@ class HealthKitManager: ObservableObject {
                 let unit = HKUnit.secondUnit(with: .milli)
                 let avg = stats.averageQuantity()?.doubleValue(for: unit)
                 continuation.resume(returning: avg)
+            }
+            self.healthStore.execute(query)
+        }
+    }
+
+    func currentCyclePhase(at date: Date = Date()) async -> String? {
+        // Determine a coarse cycle phase using recent menstrual flow samples.
+        guard let bleedingType = HKObjectType.categoryType(forIdentifier: .menstrualFlow) else { return nil }
+        let lookback = date.addingTimeInterval(-90 * 24 * 3600) // 90 days lookback
+        let predicate = HKQuery.predicateForSamples(withStart: lookback, end: date, options: .strictStartDate)
+        return await withCheckedContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(sampleType: bleedingType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in
+                guard error == nil, let samples = samples as? [HKCategorySample], !samples.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                // Find the most recent bleeding window
+                let bleedingValues: Set<Int> = Set([
+                    HKCategoryValueVaginalBleeding.heavy.rawValue,
+                    HKCategoryValueVaginalBleeding.medium.rawValue,
+                    HKCategoryValueVaginalBleeding.light.rawValue,
+                    HKCategoryValueVaginalBleeding.unspecified.rawValue
+                ])
+                // Group contiguous bleeding days to identify last period start
+                let calendar = Calendar.current
+                let bleedingDays = samples
+                    .filter { bleedingValues.contains($0.value) }
+                    .map { calendar.startOfDay(for: $0.startDate) }
+                guard let lastBleedDay = bleedingDays.first else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let daysSince = calendar.dateComponents([.day], from: lastBleedDay, to: calendar.startOfDay(for: date)).day ?? 0
+                // Heuristic phase labeling
+                let phase: String
+                switch daysSince {
+                case 0...5:
+                    phase = "Menstruation"
+                case 6...13:
+                    phase = "Follicular"
+                case 14...16:
+                    phase = "Ovulation"
+                default:
+                    phase = "Luteal"
+                }
+                continuation.resume(returning: phase)
             }
             self.healthStore.execute(query)
         }
@@ -965,6 +1027,7 @@ struct HomeView: View {
             let maxHeartRate: Double?
             let restingHeartRate: Double?
             let heartRateVariability: Double?
+            let cyclePhase: String?
             
             let calendarContext: String?
             
@@ -989,6 +1052,7 @@ struct HomeView: View {
                 maxHeartRate = 134
                 restingHeartRate = 58
                 heartRateVariability = 55
+                cyclePhase = "Follicular"
             } else {
                 // Fallbacks if sensors/services are unavailable or fail
                 stepCount = (try? await healthKitManager.fetchTodayStepCount()) ?? 0
@@ -1028,6 +1092,12 @@ struct HomeView: View {
                 maxHeartRate = hrStats?.max
                 restingHeartRate = try? await healthKitManager.fetchMostRecentRestingHeartRate()
                 heartRateVariability = try? await healthKitManager.fetchHRVAverageLast24h()
+                // Cycle phase (if permission and data present)
+                if let phase = await healthKitManager.currentCyclePhase(at: Date()) {
+                    cyclePhase = phase
+                } else {
+                    cyclePhase = nil
+                }
                 
                 if let last = weatherManager.lastKnownLocation() {
                     locationLatitude = last.coordinate.latitude
@@ -1059,6 +1129,7 @@ struct HomeView: View {
                 maxHeartRate: maxHeartRate,
                 restingHeartRate: restingHeartRate,
                 heartRateVariability: heartRateVariability,
+                cyclePhase: cyclePhase,
                 locationLatitude: locationLatitude,
                 locationLongitude: locationLongitude,
                 calendarContext: calendarContext
@@ -1458,6 +1529,17 @@ struct MigraineDetailView: View {
                         Label("HRV (SDNN)", systemImage: "waveform.path.ecg")
                         Spacer()
                         Text(String(format: "%.0f ms", hrv))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            if let phase = log.cyclePhase {
+                Section("Cycle Tracking") {
+                    HStack {
+                        Label("Cycle Phase", systemImage: "drop.fill")
+                        Spacer()
+                        Text(phase)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -1880,6 +1962,21 @@ struct MeView: View {
                         )
                     }
 
+                    // Cycle Tracking
+                    Text("Cycle Tracking")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        let phases = logs.compactMap { $0.cyclePhase }
+                        let commonPhase = mode(phases)
+                        MetricCard(
+                            title: "Common Cycle Phase",
+                            icon: "drop.fill",
+                            value: commonPhase ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                    }
+                    
                     // Environment
                     Text("Environment")
                         .font(.headline)
