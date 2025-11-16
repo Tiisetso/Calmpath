@@ -64,6 +64,12 @@ final class MigraineLog {
     var prodromeNeckStiffness: Bool // default false
     var prodromeMoodChange: Bool // default false
     var prodromeEnergyChange: Bool // default false
+    // Section expansion state
+    var isExperienceSectionExpanded: Bool // default false
+    var isSensorySectionExpanded: Bool // default false
+    var isFacialSectionExpanded: Bool // default false
+    var isAuraSectionExpanded: Bool // default false
+    var isProdromeSectionExpanded: Bool // default false
     // Human-readable summary of relevant calendar events (titles and locations)
     var calendarContext: String?
     
@@ -113,6 +119,11 @@ final class MigraineLog {
         prodromeNeckStiffness: Bool = false,
         prodromeMoodChange: Bool = false,
         prodromeEnergyChange: Bool = false,
+        isExperienceSectionExpanded: Bool = false,
+        isSensorySectionExpanded: Bool = false,
+        isFacialSectionExpanded: Bool = false,
+        isAuraSectionExpanded: Bool = false,
+        isProdromeSectionExpanded: Bool = false,
         averageHeartRate: Double? = nil,
         maxHeartRate: Double? = nil,
         restingHeartRate: Double? = nil,
@@ -163,6 +174,11 @@ final class MigraineLog {
         self.prodromeNeckStiffness = prodromeNeckStiffness
         self.prodromeMoodChange = prodromeMoodChange
         self.prodromeEnergyChange = prodromeEnergyChange
+        self.isExperienceSectionExpanded = isExperienceSectionExpanded
+        self.isSensorySectionExpanded = isSensorySectionExpanded
+        self.isFacialSectionExpanded = isFacialSectionExpanded
+        self.isAuraSectionExpanded = isAuraSectionExpanded
+        self.isProdromeSectionExpanded = isProdromeSectionExpanded
         self.averageHeartRate = averageHeartRate
         self.maxHeartRate = maxHeartRate
         self.restingHeartRate = restingHeartRate
@@ -1601,297 +1617,332 @@ struct MigraineDetailView: View {
                 .listRowSeparator(.hidden)
             }
             
-            Section("Describe your Experience") {
-                // Pain Description (single selection)
-                if #available(iOS 17.0, *) {
-                    Picker("Pain Description", selection: $log.painDescription) {
-                        Text("None").tag(nil as String?)
-                        ForEach(painOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
+            Section {
+                DisclosureGroup(isExpanded: $log.isExperienceSectionExpanded) {
+                    // Pain Description (single selection)
+                    if #available(iOS 17.0, *) {
+                        Picker("Pain Description", selection: $log.painDescription) {
+                            Text("None").tag(nil as String?)
+                            ForEach(painOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.painDescription) { _, _ in
+                            try? modelContext.save()
+                        }
+                    } else {
+                        Picker("Pain Description", selection: $log.painDescription) {
+                            Text("None").tag(nil as String?)
+                            ForEach(painOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.painDescription) { _ in
+                            try? modelContext.save()
                         }
                     }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.painDescription) { _, _ in
-                        try? modelContext.save()
-                    }
-                } else {
-                    Picker("Pain Description", selection: $log.painDescription) {
-                        Text("None").tag(nil as String?)
-                        ForEach(painOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.painDescription) { _ in
-                        try? modelContext.save()
-                    }
-                }
 
-                // Pain Location (single selection)
-                if #available(iOS 17.0, *) {
-                    Picker("Pain Location", selection: $log.painLocation) {
-                        Text("None").tag(nil as String?)
-                        ForEach(painLocationOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
+                    // Pain Location (single selection)
+                    if #available(iOS 17.0, *) {
+                        Picker("Pain Location", selection: $log.painLocation) {
+                            Text("None").tag(nil as String?)
+                            ForEach(painLocationOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.painLocation) { _, _ in
+                            try? modelContext.save()
+                        }
+                    } else {
+                        Picker("Pain Location", selection: $log.painLocation) {
+                            Text("None").tag(nil as String?)
+                            ForEach(painLocationOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.painLocation) { _ in
+                            try? modelContext.save()
                         }
                     }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.painLocation) { _, _ in
-                        try? modelContext.save()
-                    }
-                } else {
-                    Picker("Pain Location", selection: $log.painLocation) {
-                        Text("None").tag(nil as String?)
-                        ForEach(painLocationOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
+                    
+                    // Onset Pattern (single selection)
+                    if #available(iOS 17.0, *) {
+                        Picker("Onset Pattern", selection: $log.onsetPattern) {
+                            Text("None").tag(nil as String?)
+                            ForEach(onsetPatternOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.onsetPattern) { _, _ in
+                            try? modelContext.save()
+                        }
+                    } else {
+                        Picker("Onset Pattern", selection: $log.onsetPattern) {
+                            Text("None").tag(nil as String?)
+                            ForEach(onsetPatternOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.onsetPattern) { _ in
+                            try? modelContext.save()
                         }
                     }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.painLocation) { _ in
-                        try? modelContext.save()
+                    
+                    // Mood (single selection)
+                    if #available(iOS 17.0, *) {
+                        Picker("Mood", selection: $log.mood) {
+                            Text("None").tag(nil as String?)
+                            ForEach(moodOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.mood) { _, _ in
+                            try? modelContext.save()
+                        }
+                    } else {
+                        Picker("Mood", selection: $log.mood) {
+                            Text("None").tag(nil as String?)
+                            ForEach(moodOptions, id: \.self) { option in
+                                Text(option).tag(Optional(option))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .onChange(of: log.mood) { _ in
+                            try? modelContext.save()
+                        }
                     }
+                } label: {
+                    Text("Describe Your Experience")
                 }
-                
-                // Onset Pattern (single selection)
-                if #available(iOS 17.0, *) {
-                    Picker("Onset Pattern", selection: $log.onsetPattern) {
-                        Text("None").tag(nil as String?)
-                        ForEach(onsetPatternOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.onsetPattern) { _, _ in
-                        try? modelContext.save()
-                    }
-                } else {
-                    Picker("Onset Pattern", selection: $log.onsetPattern) {
-                        Text("None").tag(nil as String?)
-                        ForEach(onsetPatternOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.onsetPattern) { _ in
-                        try? modelContext.save()
-                    }
-                }
-                
-                // Mood (single selection)
-                if #available(iOS 17.0, *) {
-                    Picker("Mood", selection: $log.mood) {
-                        Text("None").tag(nil as String?)
-                        ForEach(moodOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.mood) { _, _ in
-                        try? modelContext.save()
-                    }
-                } else {
-                    Picker("Mood", selection: $log.mood) {
-                        Text("None").tag(nil as String?)
-                        ForEach(moodOptions, id: \.self) { option in
-                            Text(option).tag(Optional(option))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .onChange(of: log.mood) { _ in
-                        try? modelContext.save()
-                    }
-                }
-            }
-            
-            Section("Sensory Experience") {
-                if #available(iOS 17.0, *) {
-                    Toggle("Light sensitivity", isOn: $log.lightSensitivity)
-                        .onChange(of: log.lightSensitivity) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
-                        .onChange(of: log.soundSensitivity) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
-                        .onChange(of: log.smellSensitivity) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
-                        .onChange(of: log.motionSensitivity) { _, _ in
-                            try? modelContext.save()
-                        }
-                } else {
-                    Toggle("Light sensitivity", isOn: $log.lightSensitivity)
-                        .onChange(of: log.lightSensitivity) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
-                        .onChange(of: log.soundSensitivity) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
-                        .onChange(of: log.smellSensitivity) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
-                        .onChange(of: log.motionSensitivity) { _ in
-                            try? modelContext.save()
-                        }
+                .onChange(of: log.isExperienceSectionExpanded) { _ in
+                    try? modelContext.save()
                 }
             }
             
-            Section("Facial Symptoms") {
-                if #available(iOS 17.0, *) {
-                    Toggle("Eye tearing", isOn: $log.eyeTearing)
-                        .onChange(of: log.eyeTearing) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Eye drooping", isOn: $log.eyeDrooping)
-                        .onChange(of: log.eyeDrooping) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
-                        .onChange(of: log.nasalCongestion) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Flushed face", isOn: $log.flushedFace)
-                        .onChange(of: log.flushedFace) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Restlessness", isOn: $log.restlessness)
-                        .onChange(of: log.restlessness) { _, _ in
-                            try? modelContext.save()
-                        }
-                } else {
-                    Toggle("Eye tearing", isOn: $log.eyeTearing)
-                        .onChange(of: log.eyeTearing) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Eye drooping", isOn: $log.eyeDrooping)
-                        .onChange(of: log.eyeDrooping) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
-                        .onChange(of: log.nasalCongestion) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Flushed face", isOn: $log.flushedFace)
-                        .onChange(of: log.flushedFace) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Restlessness", isOn: $log.restlessness)
-                        .onChange(of: log.restlessness) { _ in
-                            try? modelContext.save()
-                        }
+            Section {
+                DisclosureGroup(isExpanded: $log.isSensorySectionExpanded) {
+                    if #available(iOS 17.0, *) {
+                        Toggle("Light sensitivity", isOn: $log.lightSensitivity)
+                            .onChange(of: log.lightSensitivity) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
+                            .onChange(of: log.soundSensitivity) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
+                            .onChange(of: log.smellSensitivity) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
+                            .onChange(of: log.motionSensitivity) { _, _ in
+                                try? modelContext.save()
+                            }
+                    } else {
+                        Toggle("Light sensitivity", isOn: $log.lightSensitivity)
+                            .onChange(of: log.lightSensitivity) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sound sensitivity", isOn: $log.soundSensitivity)
+                            .onChange(of: log.soundSensitivity) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Smell sensitivity", isOn: $log.smellSensitivity)
+                            .onChange(of: log.smellSensitivity) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Motion sensitivity", isOn: $log.motionSensitivity)
+                            .onChange(of: log.motionSensitivity) { _ in
+                                try? modelContext.save()
+                            }
+                    }
+                } label: {
+                    Text("Sensory Experience")
+                }
+                .onChange(of: log.isSensorySectionExpanded) { _ in
+                    try? modelContext.save()
                 }
             }
             
-            Section("Aura Description") {
-                if #available(iOS 17.0, *) {
-                    Toggle("Zig-zags", isOn: $log.auraZigzags)
-                        .onChange(of: log.auraZigzags) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sparkles", isOn: $log.auraSparkles)
-                        .onChange(of: log.auraSparkles) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Blocked vision", isOn: $log.auraBlockedVision)
-                        .onChange(of: log.auraBlockedVision) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Numbness", isOn: $log.auraNumbness)
-                        .onChange(of: log.auraNumbness) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
-                        .onChange(of: log.auraSpeechTrouble) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
-                        .onChange(of: log.auraDistortedShapes) { _, _ in
-                            try? modelContext.save()
-                        }
-                } else {
-                    Toggle("Zig-zags", isOn: $log.auraZigzags)
-                        .onChange(of: log.auraZigzags) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sparkles", isOn: $log.auraSparkles)
-                        .onChange(of: log.auraSparkles) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Blocked vision", isOn: $log.auraBlockedVision)
-                        .onChange(of: log.auraBlockedVision) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Numbness", isOn: $log.auraNumbness)
-                        .onChange(of: log.auraNumbness) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
-                        .onChange(of: log.auraSpeechTrouble) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
-                        .onChange(of: log.auraDistortedShapes) { _ in
-                            try? modelContext.save()
-                        }
+            Section {
+                DisclosureGroup(isExpanded: $log.isFacialSectionExpanded) {
+                    if #available(iOS 17.0, *) {
+                        Toggle("Eye tearing", isOn: $log.eyeTearing)
+                            .onChange(of: log.eyeTearing) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Eye drooping", isOn: $log.eyeDrooping)
+                            .onChange(of: log.eyeDrooping) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
+                            .onChange(of: log.nasalCongestion) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Flushed face", isOn: $log.flushedFace)
+                            .onChange(of: log.flushedFace) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Restlessness", isOn: $log.restlessness)
+                            .onChange(of: log.restlessness) { _, _ in
+                                try? modelContext.save()
+                            }
+                    } else {
+                        Toggle("Eye tearing", isOn: $log.eyeTearing)
+                            .onChange(of: log.eyeTearing) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Eye drooping", isOn: $log.eyeDrooping)
+                            .onChange(of: log.eyeDrooping) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Nasal congestion/runny nose", isOn: $log.nasalCongestion)
+                            .onChange(of: log.nasalCongestion) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Flushed face", isOn: $log.flushedFace)
+                            .onChange(of: log.flushedFace) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Restlessness", isOn: $log.restlessness)
+                            .onChange(of: log.restlessness) { _ in
+                                try? modelContext.save()
+                            }
+                    }
+                } label: {
+                    Text("Facial Symptoms")
+                }
+                .onChange(of: log.isFacialSectionExpanded) { _ in
+                    try? modelContext.save()
                 }
             }
             
-            Section("Before Pain I Felt") {
-                if #available(iOS 17.0, *) {
-                    Toggle("Cravings", isOn: $log.prodromeCravings)
-                        .onChange(of: log.prodromeCravings) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sudden yawning", isOn: $log.prodromeYawning)
-                        .onChange(of: log.prodromeYawning) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Peeing more often", isOn: $log.prodromePeeing)
-                        .onChange(of: log.prodromePeeing) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
-                        .onChange(of: log.prodromeNeckStiffness) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Mood change", isOn: $log.prodromeMoodChange)
-                        .onChange(of: log.prodromeMoodChange) { _, _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
-                        .onChange(of: log.prodromeEnergyChange) { _, _ in
-                            try? modelContext.save()
-                        }
-                } else {
-                    Toggle("Cravings", isOn: $log.prodromeCravings)
-                        .onChange(of: log.prodromeCravings) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Sudden yawning", isOn: $log.prodromeYawning)
-                        .onChange(of: log.prodromeYawning) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Peeing more often", isOn: $log.prodromePeeing)
-                        .onChange(of: log.prodromePeeing) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
-                        .onChange(of: log.prodromeNeckStiffness) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Mood change", isOn: $log.prodromeMoodChange)
-                        .onChange(of: log.prodromeMoodChange) { _ in
-                            try? modelContext.save()
-                        }
-                    Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
-                        .onChange(of: log.prodromeEnergyChange) { _ in
-                            try? modelContext.save()
-                        }
+            Section {
+                DisclosureGroup(isExpanded: $log.isAuraSectionExpanded) {
+                    if #available(iOS 17.0, *) {
+                        Toggle("Zig-zags", isOn: $log.auraZigzags)
+                            .onChange(of: log.auraZigzags) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sparkles", isOn: $log.auraSparkles)
+                            .onChange(of: log.auraSparkles) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Blocked vision", isOn: $log.auraBlockedVision)
+                            .onChange(of: log.auraBlockedVision) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Numbness", isOn: $log.auraNumbness)
+                            .onChange(of: log.auraNumbness) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
+                            .onChange(of: log.auraSpeechTrouble) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
+                            .onChange(of: log.auraDistortedShapes) { _, _ in
+                                try? modelContext.save()
+                            }
+                    } else {
+                        Toggle("Zig-zags", isOn: $log.auraZigzags)
+                            .onChange(of: log.auraZigzags) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sparkles", isOn: $log.auraSparkles)
+                            .onChange(of: log.auraSparkles) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Blocked vision", isOn: $log.auraBlockedVision)
+                            .onChange(of: log.auraBlockedVision) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Numbness", isOn: $log.auraNumbness)
+                            .onChange(of: log.auraNumbness) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Speech trouble", isOn: $log.auraSpeechTrouble)
+                            .onChange(of: log.auraSpeechTrouble) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Distorted shapes", isOn: $log.auraDistortedShapes)
+                            .onChange(of: log.auraDistortedShapes) { _ in
+                                try? modelContext.save()
+                            }
+                    }
+                } label: {
+                    Text("Aura Description")
+                }
+                .onChange(of: log.isAuraSectionExpanded) { _ in
+                    try? modelContext.save()
+                }
+            }
+            
+            Section {
+                DisclosureGroup(isExpanded: $log.isProdromeSectionExpanded) {
+                    if #available(iOS 17.0, *) {
+                        Toggle("Cravings", isOn: $log.prodromeCravings)
+                            .onChange(of: log.prodromeCravings) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sudden yawning", isOn: $log.prodromeYawning)
+                            .onChange(of: log.prodromeYawning) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Peeing more often", isOn: $log.prodromePeeing)
+                            .onChange(of: log.prodromePeeing) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
+                            .onChange(of: log.prodromeNeckStiffness) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Mood change", isOn: $log.prodromeMoodChange)
+                            .onChange(of: log.prodromeMoodChange) { _, _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
+                            .onChange(of: log.prodromeEnergyChange) { _, _ in
+                                try? modelContext.save()
+                            }
+                    } else {
+                        Toggle("Cravings", isOn: $log.prodromeCravings)
+                            .onChange(of: log.prodromeCravings) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Sudden yawning", isOn: $log.prodromeYawning)
+                            .onChange(of: log.prodromeYawning) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Peeing more often", isOn: $log.prodromePeeing)
+                            .onChange(of: log.prodromePeeing) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Neck stiffness", isOn: $log.prodromeNeckStiffness)
+                            .onChange(of: log.prodromeNeckStiffness) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Mood change", isOn: $log.prodromeMoodChange)
+                            .onChange(of: log.prodromeMoodChange) { _ in
+                                try? modelContext.save()
+                            }
+                        Toggle("Energy spike or crash", isOn: $log.prodromeEnergyChange)
+                            .onChange(of: log.prodromeEnergyChange) { _ in
+                                try? modelContext.save()
+                            }
+                    }
+                } label: {
+                    Text("Before Pain I Felt")
+                }
+                .onChange(of: log.isProdromeSectionExpanded) { _ in
+                    try? modelContext.save()
                 }
             }
             
