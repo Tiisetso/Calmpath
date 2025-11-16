@@ -21,7 +21,6 @@ import EventKit
 @Model
 final class MigraineLog {
     var timestamp: Date
-    var duration: TimeInterval? // in seconds
     var intensity: Double // 0.0 to 1.0
     var stepCount: Int
     var temperature: Double // in Celsius
@@ -82,7 +81,6 @@ final class MigraineLog {
     
     init(
         timestamp: Date,
-        duration: TimeInterval? = nil,
         intensity: Double = 0.5,
         stepCount: Int = 0,
         temperature: Double = 0.0,
@@ -136,7 +134,6 @@ final class MigraineLog {
         calendarContext: String? = nil
     ) {
         self.timestamp = timestamp
-        self.duration = duration
         self.intensity = intensity
         self.stepCount = stepCount
         self.temperature = temperature
@@ -1564,14 +1561,6 @@ struct MigraineDetailView: View {
                     Spacer()
                     Text(log.timestamp, style: .time)
                 }
-                
-                // Duration picker
-                HStack {
-                    Text("Duration")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    DurationPickerButton(log: log, modelContext: modelContext)
-                }
             }
             
             Section("Intensity") {
@@ -2165,177 +2154,6 @@ struct LocationMapView: View {
     }
 }
 
-struct DurationPickerButton: View {
-    @Bindable var log: MigraineLog
-    var modelContext: ModelContext
-    @State private var showingPicker = false
-    @State private var selectedDays: Int = 0
-    @State private var selectedHours: Int = 0
-    @State private var selectedMinutes: Int = 0
-    
-    var body: some View {
-        Button(action: {
-            // Initialize picker values from current duration
-            if let duration = log.duration {
-                let totalMinutes = Int(duration / 60)
-                selectedDays = totalMinutes / (24 * 60)
-                selectedHours = (totalMinutes % (24 * 60)) / 60
-                selectedMinutes = totalMinutes % 60
-            } else {
-                selectedDays = 0
-                selectedHours = 0
-                selectedMinutes = 0
-            }
-            showingPicker = true
-        }) {
-            if let duration = log.duration {
-                Text(formatDuration(duration))
-            } else {
-                Text("Not set")
-                    .foregroundColor(.secondary)
-            }
-        }
-        .sheet(isPresented: $showingPicker) {
-            NavigationStack {
-                VStack(spacing: 20) {
-                    Text("How long did it last?")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .padding(.top, 40)
-                    
-                    HStack(spacing: 20) {
-                        // Days picker
-                        VStack {
-                            Text("Days")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Days", selection: $selectedDays) {
-                                ForEach(0..<8) { day in
-                                    Text("\(day)").tag(day)
-                                }
-                            }
-                            .pickerStyle(.wheel)
-                            .frame(width: 80, height: 150)
-                            .clipped()
-                        }
-                        
-                        // Hours picker
-                        VStack {
-                            Text("Hours")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Hours", selection: $selectedHours) {
-                                ForEach(0..<24) { hour in
-                                    Text("\(hour)").tag(hour)
-                                }
-                            }
-                            .pickerStyle(.wheel)
-                            .frame(width: 80, height: 150)
-                            .clipped()
-                        }
-                        
-                        // Minutes picker
-                        VStack {
-                            Text("Minutes")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Picker("Minutes", selection: $selectedMinutes) {
-                                ForEach(0..<60) { minute in
-                                    Text("\(minute)").tag(minute)
-                                }
-                            }
-                            .pickerStyle(.wheel)
-                            .frame(width: 80, height: 150)
-                            .clipped()
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(spacing: 12) {
-                        Button(action: {
-                            // Calculate total duration in seconds
-                            let totalSeconds = TimeInterval(
-                                selectedDays * 24 * 3600 +
-                                selectedHours * 3600 +
-                                selectedMinutes * 60
-                            )
-                            
-                            if totalSeconds > 0 {
-                                log.duration = totalSeconds
-                            } else {
-                                log.duration = nil
-                            }
-                            
-                            try? modelContext.save()
-                            showingPicker = false
-                        }) {
-                            Text("Save")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color(red: 0.53, green: 0.81, blue: 0.92))
-                                .cornerRadius(12)
-                        }
-                        
-                        if log.duration != nil {
-                            Button(action: {
-                                log.duration = nil
-                                try? modelContext.save()
-                                showingPicker = false
-                            }) {
-                                Text("Clear Duration")
-                                    .font(.headline)
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(12)
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 30)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            showingPicker = false
-                        }
-                    }
-                }
-            }
-            .presentationDetents([.medium])
-        }
-    }
-    
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        let totalMinutes = Int(seconds / 60)
-        
-        if totalMinutes < 60 {
-            return "\(totalMinutes)m"
-        }
-        
-        let days = totalMinutes / (24 * 60)
-        let hours = (totalMinutes % (24 * 60)) / 60
-        let minutes = totalMinutes % 60
-        
-        var parts: [String] = []
-        if days > 0 {
-            parts.append("\(days)d")
-        }
-        if hours > 0 {
-            parts.append("\(hours)h")
-        }
-        if minutes > 0 {
-            parts.append("\(minutes)m")
-        }
-        
-        return parts.isEmpty ? "0m" : parts.joined(separator: " ")
-    }
-}
-
 // Inserted MeView here before Main Content View marker
 struct MeView: View {
     @Query private var logs: [MigraineLog]
@@ -2657,6 +2475,15 @@ struct MeView: View {
                             background: Color(red: 0.53, green: 0.81, blue: 0.92)
                         )
                     }
+                    
+                    // Location Map
+                    Text("Locations")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    MigraineLocationsMapView(logs: logs)
+                        .frame(height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding()
             }
@@ -2753,6 +2580,387 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+// MARK: - Migraine Locations Map
+
+struct MigraineLocationAnnotation: Identifiable, Hashable, Equatable {
+    let id = UUID()
+    let coordinate: CLLocationCoordinate2D
+    let migraineCount: Int
+    let migraineLogs: [MigraineLog]
+    
+    // Implement Hashable
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    // Implement Equatable
+    static func == (lhs: MigraineLocationAnnotation, rhs: MigraineLocationAnnotation) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+struct MigraineLocationsMapView: View {
+    let logs: [MigraineLog]
+    @State private var showingFullScreen = false
+    @State private var region: MKCoordinateRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+        span: MKCoordinateSpan(latitudeDelta: 10, longitudeDelta: 10)
+    )
+    
+    private var annotations: [MigraineLocationAnnotation] {
+        // Filter logs with valid locations
+        let validLogs = logs.filter { log in
+            guard let lat = log.locationLatitude, let lon = log.locationLongitude else { return false }
+            return lat.isFinite && lon.isFinite && abs(lat) <= 90 && abs(lon) <= 180
+        }
+        
+        guard !validLogs.isEmpty else { return [] }
+        
+        // Cluster nearby locations (within ~500m)
+        let clusterDistance: Double = 0.005 // roughly 500 meters in degrees
+        var clusters: [MigraineLocationAnnotation] = []
+        var processed = Set<Date>()
+        
+        for log in validLogs {
+            guard !processed.contains(log.timestamp) else { continue }
+            
+            let logCoord = CLLocationCoordinate2D(
+                latitude: log.locationLatitude!,
+                longitude: log.locationLongitude!
+            )
+            
+            // Find nearby logs
+            var clusterLogs = [log]
+            processed.insert(log.timestamp)
+            
+            for otherLog in validLogs {
+                guard !processed.contains(otherLog.timestamp) else { continue }
+                
+                let otherCoord = CLLocationCoordinate2D(
+                    latitude: otherLog.locationLatitude!,
+                    longitude: otherLog.locationLongitude!
+                )
+                
+                let latDiff = abs(logCoord.latitude - otherCoord.latitude)
+                let lonDiff = abs(logCoord.longitude - otherCoord.longitude)
+                
+                if latDiff < clusterDistance && lonDiff < clusterDistance {
+                    clusterLogs.append(otherLog)
+                    processed.insert(otherLog.timestamp)
+                }
+            }
+            
+            // Calculate cluster center (average of all coordinates)
+            let avgLat = clusterLogs.map { $0.locationLatitude! }.reduce(0, +) / Double(clusterLogs.count)
+            let avgLon = clusterLogs.map { $0.locationLongitude! }.reduce(0, +) / Double(clusterLogs.count)
+            
+            clusters.append(MigraineLocationAnnotation(
+                coordinate: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLon),
+                migraineCount: clusterLogs.count,
+                migraineLogs: clusterLogs
+            ))
+        }
+        
+        return clusters
+    }
+    
+    private func calculateRegion() -> MKCoordinateRegion {
+        guard !annotations.isEmpty else {
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                span: MKCoordinateSpan(latitudeDelta: 10, longitudeDelta: 10)
+            )
+        }
+        
+        let coordinates = annotations.map { $0.coordinate }
+        let minLat = coordinates.map { $0.latitude }.min() ?? 0
+        let maxLat = coordinates.map { $0.latitude }.max() ?? 0
+        let minLon = coordinates.map { $0.longitude }.min() ?? 0
+        let maxLon = coordinates.map { $0.longitude }.max() ?? 0
+        
+        let centerLat = (minLat + maxLat) / 2
+        let centerLon = (minLon + maxLon) / 2
+        let spanLat = max((maxLat - minLat) * 1.5, 0.01)
+        let spanLon = max((maxLon - minLon) * 1.5, 0.01)
+        
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+            span: MKCoordinateSpan(latitudeDelta: spanLat, longitudeDelta: spanLon)
+        )
+    }
+    
+    var body: some View {
+        ZStack {
+            if annotations.isEmpty {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.gray.opacity(0.1))
+                    .overlay {
+                        VStack(spacing: 12) {
+                            Image(systemName: "map")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                            Text("No location data available")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            Text("Migraines logged with location will appear here")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                    }
+            } else {
+                Map(position: .constant(.region(region))) {
+                    ForEach(annotations) { annotation in
+                        Annotation(
+                            "\(annotation.migraineCount)",
+                            coordinate: annotation.coordinate
+                        ) {
+                            ClusterMarkerView(count: annotation.migraineCount)
+                        }
+                    }
+                }
+                .onAppear {
+                    region = calculateRegion()
+                }
+                .onTapGesture {
+                    showingFullScreen = true
+                }
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        showingFullScreen = true
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(Circle())
+                    }
+                    .padding(12)
+                }
+            }
+        }
+        .sheet(isPresented: $showingFullScreen) {
+            FullScreenMapView(logs: logs, annotations: annotations, initialRegion: region)
+        }
+    }
+}
+
+struct ClusterMarkerView: View {
+    let count: Int
+    
+    private var markerColor: Color {
+        switch count {
+        case 1:
+            return Color(red: 0.53, green: 0.81, blue: 0.92)
+        case 2...4:
+            return .orange
+        case 5...9:
+            return .red
+        default:
+            return .purple
+        }
+    }
+    
+    private var markerSize: CGFloat {
+        switch count {
+        case 1:
+            return 40
+        case 2...4:
+            return 50
+        case 5...9:
+            return 60
+        default:
+            return 70
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(markerColor.opacity(0.3))
+                .frame(width: markerSize + 8, height: markerSize + 8)
+            
+            Circle()
+                .fill(markerColor)
+                .frame(width: markerSize, height: markerSize)
+                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+            
+            VStack(spacing: 2) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: markerSize * 0.3, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Text("\(count)")
+                    .font(.system(size: markerSize * 0.3, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+        }
+    }
+}
+
+struct FullScreenMapView: View {
+    let logs: [MigraineLog]
+    let annotations: [MigraineLocationAnnotation]
+    let initialRegion: MKCoordinateRegion
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedAnnotation: MigraineLocationAnnotation?
+    @State private var position: MapCameraPosition
+    
+    init(logs: [MigraineLog], annotations: [MigraineLocationAnnotation], initialRegion: MKCoordinateRegion) {
+        self.logs = logs
+        self.annotations = annotations
+        self.initialRegion = initialRegion
+        _position = State(initialValue: .region(initialRegion))
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Map(position: $position, selection: $selectedAnnotation) {
+                    ForEach(annotations) { annotation in
+                        Annotation(
+                            "\(annotation.migraineCount)",
+                            coordinate: annotation.coordinate
+                        ) {
+                            ClusterMarkerView(count: annotation.migraineCount)
+                                .onTapGesture {
+                                    selectedAnnotation = annotation
+                                }
+                        }
+                        .tag(annotation)
+                    }
+                }
+                .mapStyle(.standard(elevation: .realistic))
+                .mapControls {
+                    MapCompass()
+                    MapScaleView()
+                    MapUserLocationButton()
+                }
+                
+                if let selected = selectedAnnotation {
+                    VStack {
+                        Spacer()
+                        ClusterDetailCard(annotation: selected)
+                            .padding()
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+            }
+            .navigationTitle("Migraine Locations")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedAnnotation)
+    }
+}
+
+struct ClusterDetailCard: View {
+    let annotation: MigraineLocationAnnotation
+    
+    private var averageIntensity: Double {
+        let sum = annotation.migraineLogs.reduce(0.0) { $0 + $1.intensity }
+        return sum / Double(annotation.migraineLogs.count)
+    }
+    
+    private var intensityColor: Color {
+        switch averageIntensity {
+        case 0..<0.3:
+            return .green
+        case 0.3..<0.5:
+            return .yellow
+        case 0.5..<0.7:
+            return .orange
+        default:
+            return .red
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(annotation.migraineCount) Migraine\(annotation.migraineCount == 1 ? "" : "s")")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                    
+                    Text(String(format: "%.4f, %.4f", annotation.coordinate.latitude, annotation.coordinate.longitude))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                ZStack {
+                    Circle()
+                        .fill(intensityColor.opacity(0.2))
+                        .frame(width: 56, height: 56)
+                    
+                    Circle()
+                        .fill(intensityColor)
+                        .frame(width: 48, height: 48)
+                    
+                    VStack(spacing: 0) {
+                        Text(String(format: "%.1f", averageIntensity * 10))
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("avg")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                }
+            }
+            
+            if annotation.migraineCount > 1 {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Date Range")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if let earliest = annotation.migraineLogs.map({ $0.timestamp }).min(),
+                       let latest = annotation.migraineLogs.map({ $0.timestamp }).max() {
+                        HStack {
+                            Text(earliest, style: .date)
+                            Text("–")
+                            Text(latest, style: .date)
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                    }
+                }
+            } else if let log = annotation.migraineLogs.first {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(log.timestamp, style: .date)
+                        Text("at")
+                        Text(log.timestamp, style: .time)
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 4)
+        )
     }
 }
 
