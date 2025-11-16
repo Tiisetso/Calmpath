@@ -78,6 +78,9 @@ final class MigraineLog {
     var restingHeartRate: Double? // bpm (most recent)
     var heartRateVariability: Double? // ms (SDNN average over 24h)
     var cyclePhase: String? // e.g., menstruation, ovulation, luteal, follicular
+    var durationDays: Int? // duration in days
+    var durationHours: Int? // duration in hours
+    var durationMinutes: Int? // duration in minutes
     
     init(
         timestamp: Date,
@@ -129,6 +132,9 @@ final class MigraineLog {
         restingHeartRate: Double? = nil,
         heartRateVariability: Double? = nil,
         cyclePhase: String? = nil,
+        durationDays: Int? = nil,
+        durationHours: Int? = nil,
+        durationMinutes: Int? = nil,
         locationLatitude: Double? = nil,
         locationLongitude: Double? = nil,
         calendarContext: String? = nil
@@ -184,6 +190,9 @@ final class MigraineLog {
         self.restingHeartRate = restingHeartRate
         self.heartRateVariability = heartRateVariability
         self.cyclePhase = cyclePhase
+        self.durationDays = durationDays
+        self.durationHours = durationHours
+        self.durationMinutes = durationMinutes
         self.calendarContext = calendarContext
     }
 }
@@ -1545,6 +1554,21 @@ struct MigraineDetailView: View {
         "Slowed thinking"
     ]
     
+    private var durationDisplayString: String {
+        guard let days = log.durationDays, let hours = log.durationHours, let minutes = log.durationMinutes,
+              days > 0 || hours > 0 || minutes > 0 else {
+            return "Not set"
+        }
+        
+        var durationParts: [String] = []
+        if days > 0 { durationParts.append("\(days)d") }
+        if hours > 0 { durationParts.append("\(hours)h") }
+        if minutes > 0 { durationParts.append("\(minutes)m") }
+        return durationParts.joined(separator: " ")
+    }
+    
+    @State private var isDurationExpanded = false
+    
     var body: some View {
         List {
             Section {
@@ -1560,6 +1584,130 @@ struct MigraineDetailView: View {
                         .foregroundColor(.secondary)
                     Spacer()
                     Text(log.timestamp, style: .time)
+                }
+                
+                DisclosureGroup(isExpanded: $isDurationExpanded) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 16) {
+                            // Days
+                            VStack(spacing: 4) {
+                                if #available(iOS 17.0, *) {
+                                    Picker("Days", selection: Binding(
+                                        get: { log.durationDays ?? 0 },
+                                        set: { log.durationDays = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<8) { day in
+                                            Text("\(day)").tag(day)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationDays) { _, _ in
+                                        try? modelContext.save()
+                                    }
+                                } else {
+                                    Picker("Days", selection: Binding(
+                                        get: { log.durationDays ?? 0 },
+                                        set: { log.durationDays = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<8) { day in
+                                            Text("\(day)").tag(day)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationDays) { _ in
+                                        try? modelContext.save()
+                                    }
+                                }
+                                Text("days")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            // Hours
+                            VStack(spacing: 4) {
+                                if #available(iOS 17.0, *) {
+                                    Picker("Hours", selection: Binding(
+                                        get: { log.durationHours ?? 0 },
+                                        set: { log.durationHours = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<24) { hour in
+                                            Text("\(hour)").tag(hour)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationHours) { _, _ in
+                                        try? modelContext.save()
+                                    }
+                                } else {
+                                    Picker("Hours", selection: Binding(
+                                        get: { log.durationHours ?? 0 },
+                                        set: { log.durationHours = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<24) { hour in
+                                            Text("\(hour)").tag(hour)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationHours) { _ in
+                                        try? modelContext.save()
+                                    }
+                                }
+                                Text("hours")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            // Minutes
+                            VStack(spacing: 4) {
+                                if #available(iOS 17.0, *) {
+                                    Picker("Minutes", selection: Binding(
+                                        get: { log.durationMinutes ?? 0 },
+                                        set: { log.durationMinutes = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<60) { minute in
+                                            Text("\(minute)").tag(minute)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationMinutes) { _, _ in
+                                        try? modelContext.save()
+                                    }
+                                } else {
+                                    Picker("Minutes", selection: Binding(
+                                        get: { log.durationMinutes ?? 0 },
+                                        set: { log.durationMinutes = $0 == 0 ? nil : $0 }
+                                    )) {
+                                        ForEach(0..<60) { minute in
+                                            Text("\(minute)").tag(minute)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .frame(width: 60)
+                                    .onChange(of: log.durationMinutes) { _ in
+                                        try? modelContext.save()
+                                    }
+                                }
+                                Text("minutes")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.vertical, 8)
+                } label: {
+                    HStack {
+                        Text("Duration")
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Text(durationDisplayString)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             
@@ -1721,7 +1869,7 @@ struct MigraineDetailView: View {
                 } label: {
                     Text("Describe your Experience")
                 }
-                .onChange(of: log.isExperienceSectionExpanded) { _ in
+                .onChange(of: log.isExperienceSectionExpanded) {
                     try? modelContext.save()
                 }
             }
@@ -1766,7 +1914,7 @@ struct MigraineDetailView: View {
                 } label: {
                     Text("Sensory Experience")
                 }
-                .onChange(of: log.isSensorySectionExpanded) { _ in
+                .onChange(of: log.isSensorySectionExpanded) {
                     try? modelContext.save()
                 }
             }
@@ -1819,7 +1967,7 @@ struct MigraineDetailView: View {
                 } label: {
                     Text("Facial Symptoms")
                 }
-                .onChange(of: log.isFacialSectionExpanded) { _ in
+                .onChange(of: log.isFacialSectionExpanded) {
                     try? modelContext.save()
                 }
             }
@@ -1880,7 +2028,7 @@ struct MigraineDetailView: View {
                 } label: {
                     Text("Aura Description")
                 }
-                .onChange(of: log.isAuraSectionExpanded) { _ in
+                .onChange(of: log.isAuraSectionExpanded) {
                     try? modelContext.save()
                 }
             }
@@ -1941,7 +2089,7 @@ struct MigraineDetailView: View {
                 } label: {
                     Text("Before Pain I Felt")
                 }
-                .onChange(of: log.isProdromeSectionExpanded) { _ in
+                .onChange(of: log.isProdromeSectionExpanded) {
                     try? modelContext.save()
                 }
             }
@@ -2596,19 +2744,19 @@ class MigrainePDFGenerator {
             
             // Summary Section
             startNewPageIfNeeded(requiredSpace: 300)
-            yOffset = drawSectionHeader("Summary", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Summary", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 10
             
             // Summary metrics
             let summaryMetrics: [(String, String)] = [
                 ("Total Recorded Migraines", "\(logs.count)"),
-                ("Average Intensity", averageIntensity != nil ? String(format: "%.1f/10", averageIntensity! * 10) : "—"),
-                ("Peak Onset Hour", mostCommonOnsetHourDisplay ?? "—"),
-                ("Most Common Weekday", mostCommonWeekdayString ?? "—")
+                ("Average Intensity", self.averageIntensity != nil ? String(format: "%.1f/10", self.averageIntensity! * 10) : "—"),
+                ("Peak Onset Hour", self.mostCommonOnsetHourDisplay ?? "—"),
+                ("Most Common Weekday", self.mostCommonWeekdayString ?? "—")
             ]
             
             for (label, value) in summaryMetrics {
-                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
             }
             
@@ -2616,17 +2764,17 @@ class MigrainePDFGenerator {
             
             // Sleep Section
             startNewPageIfNeeded(requiredSpace: 200)
-            yOffset = drawSectionHeader("Sleep", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Sleep", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 10
             
             let sleepMetrics: [(String, String)] = [
-                ("Average Bed Time", averageBedtimeString ?? "—"),
-                ("Average Wake Time", averageWakeTimeString ?? "—"),
-                ("Average Total Sleep", averageTotalSleepString ?? "—")
+                ("Average Bed Time", self.averageBedtimeString ?? "—"),
+                ("Average Wake Time", self.averageWakeTimeString ?? "—"),
+                ("Average Total Sleep", self.averageTotalSleepString ?? "—")
             ]
             
             for (label, value) in sleepMetrics {
-                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
             }
             
@@ -2634,16 +2782,16 @@ class MigrainePDFGenerator {
             
             // Heart Section
             startNewPageIfNeeded(requiredSpace: 150)
-            yOffset = drawSectionHeader("Heart", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Heart", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 10
             
             let heartMetrics: [(String, String)] = [
-                ("Average HRV", averageHRVString ?? "—"),
-                ("Average Resting HR", averageRestingHRString ?? "—")
+                ("Average HRV", self.averageHRVString ?? "—"),
+                ("Average Resting HR", self.averageRestingHRString ?? "—")
             ]
             
             for (label, value) in heartMetrics {
-                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
             }
             
@@ -2651,16 +2799,16 @@ class MigrainePDFGenerator {
             
             // Activity Section
             startNewPageIfNeeded(requiredSpace: 150)
-            yOffset = drawSectionHeader("Activity", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Activity", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 10
             
             let activityMetrics: [(String, String)] = [
-                ("Average Steps", averageStepsString ?? "—"),
-                ("Movement State", medianMovementString ?? "—")
+                ("Average Steps", self.averageStepsString ?? "—"),
+                ("Movement State", self.medianMovementString ?? "—")
             ]
             
             for (label, value) in activityMetrics {
-                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
             }
             
@@ -2670,11 +2818,11 @@ class MigrainePDFGenerator {
             let phases = logs.compactMap { $0.cyclePhase }
             if !phases.isEmpty {
                 startNewPageIfNeeded(requiredSpace: 100)
-                yOffset = drawSectionHeader("Cycle Tracking", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawSectionHeader("Cycle Tracking", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 10
                 
-                let commonPhase = mode(phases) ?? "—"
-                yOffset = drawMetricRow(label: "Common Cycle Phase", value: commonPhase, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                let commonPhase = self.mode(phases) ?? "—"
+                yOffset = self.drawMetricRow(label: "Common Cycle Phase", value: commonPhase, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
                 
                 yOffset += 20
@@ -2682,17 +2830,17 @@ class MigrainePDFGenerator {
             
             // Environment Section
             startNewPageIfNeeded(requiredSpace: 200)
-            yOffset = drawSectionHeader("Environment", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Environment", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 10
             
             let envMetrics: [(String, String)] = [
-                ("Median Conditions", medianConditionString ?? "—"),
-                ("Temperature Range", temperatureRangeString ?? "—"),
-                ("Pressure Range", pressureRangeString ?? "—")
+                ("Median Conditions", self.medianConditionString ?? "—"),
+                ("Temperature Range", self.temperatureRangeString ?? "—"),
+                ("Pressure Range", self.pressureRangeString ?? "—")
             ]
             
             for (label, value) in envMetrics {
-                yOffset = drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawMetricRow(label: label, value: value, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 5
             }
             
@@ -2701,14 +2849,14 @@ class MigrainePDFGenerator {
             // Migraine Log Section
             context.beginPage()
             yOffset = 60
-            yOffset = drawSectionHeader("Migraine Log", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+            yOffset = self.drawSectionHeader("Migraine Log", at: CGPoint(x: margin, y: yOffset), width: contentWidth)
             yOffset += 20
             
             // Sort logs chronologically (oldest to newest for medical records)
             let sortedLogs = logs.sorted { $0.timestamp < $1.timestamp }
             
             for (index, log) in sortedLogs.enumerated() {
-                let logHeight = estimateLogHeight(log: log, width: contentWidth)
+                let logHeight = self.estimateLogHeight(log: log, width: contentWidth)
                 startNewPageIfNeeded(requiredSpace: logHeight + 40)
                 
                 // Log entry header
@@ -2717,83 +2865,95 @@ class MigrainePDFGenerator {
                 dateFormatter.timeStyle = .short
                 
                 let logHeader = "Entry #\(index + 1) — \(dateFormatter.string(from: log.timestamp))"
-                yOffset = drawLogHeader(logHeader, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
+                yOffset = self.drawLogHeader(logHeader, at: CGPoint(x: margin, y: yOffset), width: contentWidth)
                 yOffset += 15
                 
                 // Intensity
-                let intensityDesc = intensityDescription(for: log.intensity)
-                yOffset = drawLogDetail(label: "Intensity", value: "\(String(format: "%.1f", log.intensity * 10))/10 (\(intensityDesc))", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                let intensityDesc = self.intensityDescription(for: log.intensity)
+                yOffset = self.drawLogDetail(label: "Intensity", value: "\(String(format: "%.1f", log.intensity * 10))/10 (\(intensityDesc))", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                 yOffset += 5
+                
+                // Duration
+                if let days = log.durationDays, let hours = log.durationHours, let minutes = log.durationMinutes,
+                   days > 0 || hours > 0 || minutes > 0 {
+                    var durationParts: [String] = []
+                    if days > 0 { durationParts.append("\(days)d") }
+                    if hours > 0 { durationParts.append("\(hours)h") }
+                    if minutes > 0 { durationParts.append("\(minutes)m") }
+                    let durationString = durationParts.joined(separator: " ")
+                    yOffset = self.drawLogDetail(label: "Duration", value: durationString, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset += 5
+                }
                 
                 // Pain details
                 if let painDesc = log.painDescription {
-                    yOffset = drawLogDetail(label: "Pain Type", value: painDesc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Pain Type", value: painDesc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let painLoc = log.painLocation {
-                    yOffset = drawLogDetail(label: "Pain Location", value: painLoc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Pain Location", value: painLoc, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let onset = log.onsetPattern {
-                    yOffset = drawLogDetail(label: "Onset Pattern", value: onset, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Onset Pattern", value: onset, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let mood = log.mood {
-                    yOffset = drawLogDetail(label: "Mood", value: mood, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Mood", value: mood, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 // Sensory symptoms
-                let sensorySymptoms = buildSymptomList(log: log)
+                let sensorySymptoms = self.buildSymptomList(log: log)
                 if !sensorySymptoms.isEmpty {
-                    yOffset = drawLogDetail(label: "Symptoms", value: sensorySymptoms.joined(separator: ", "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Symptoms", value: sensorySymptoms.joined(separator: ", "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 // Sleep
                 if let sleepDuration = log.sleepDuration {
                     let hours = sleepDuration / 3600.0
-                    yOffset = drawLogDetail(label: "Sleep Duration", value: String(format: "%.1f hours", hours), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Sleep Duration", value: String(format: "%.1f hours", hours), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 // Heart metrics
                 if let hrv = log.heartRateVariability {
-                    yOffset = drawLogDetail(label: "HRV", value: String(format: "%.0f ms", hrv), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "HRV", value: String(format: "%.0f ms", hrv), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let rhr = log.restingHeartRate {
-                    yOffset = drawLogDetail(label: "Resting HR", value: String(format: "%.0f bpm", rhr), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Resting HR", value: String(format: "%.0f bpm", rhr), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 // Cycle phase
                 if let phase = log.cyclePhase {
-                    yOffset = drawLogDetail(label: "Cycle Phase", value: phase, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Cycle Phase", value: phase, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 // Activity
-                yOffset = drawLogDetail(label: "Steps", value: "\(log.stepCount)", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                yOffset = self.drawLogDetail(label: "Steps", value: "\(log.stepCount)", at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                 yOffset += 5
                 
                 // Weather
                 if log.temperature.isFinite {
-                    yOffset = drawLogDetail(label: "Temperature", value: String(format: "%.1f°C", log.temperature), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Temperature", value: String(format: "%.1f°C", log.temperature), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let pressure = log.pressure {
-                    yOffset = drawLogDetail(label: "Pressure", value: String(format: "%.1f hPa", pressure), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Pressure", value: String(format: "%.1f hPa", pressure), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
                 if let condition = log.weatherCondition {
-                    yOffset = drawLogDetail(label: "Weather", value: condition.replacingOccurrences(of: "_", with: " ").capitalized, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Weather", value: condition.replacingOccurrences(of: "_", with: " ").capitalized, at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
@@ -2801,14 +2961,14 @@ class MigrainePDFGenerator {
                 if let calendarContext = log.calendarContext {
                     let lines = calendarContext.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     if !lines.isEmpty {
-                        yOffset = drawLogDetail(label: "Calendar Events", value: lines.joined(separator: "; "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                        yOffset = self.drawLogDetail(label: "Calendar Events", value: lines.joined(separator: "; "), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                         yOffset += 5
                     }
                 }
                 
                 // Location
                 if let lat = log.locationLatitude, let lon = log.locationLongitude {
-                    yOffset = drawLogDetail(label: "Location", value: String(format: "%.4f, %.4f", lat, lon), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
+                    yOffset = self.drawLogDetail(label: "Location", value: String(format: "%.4f, %.4f", lat, lon), at: CGPoint(x: margin + 10, y: yOffset), width: contentWidth - 10)
                     yOffset += 5
                 }
                 
@@ -2909,6 +3069,12 @@ class MigrainePDFGenerator {
     
     private func estimateLogHeight(log: MigraineLog, width: CGFloat) -> CGFloat {
         var height: CGFloat = 50 // Base height for header and intensity
+        
+        // Add height for duration if present
+        if let days = log.durationDays, let hours = log.durationHours, let minutes = log.durationMinutes,
+           days > 0 || hours > 0 || minutes > 0 {
+            height += 15
+        }
         
         if log.painDescription != nil { height += 15 }
         if log.painLocation != nil { height += 15 }
