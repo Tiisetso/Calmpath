@@ -1471,83 +1471,263 @@ struct MeView: View {
             return .red
         }
     }
+    
+    private func secondsIntoDay(_ date: Date) -> Double {
+        let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+        let h = comps.hour ?? 0
+        let m = comps.minute ?? 0
+        let s = comps.second ?? 0
+        return Double(h * 3600 + m * 60 + s)
+    }
 
+    private func timeString(fromSeconds seconds: Double) -> String {
+        let base = Calendar.current.startOfDay(for: Date())
+        let date = base.addingTimeInterval(seconds.truncatingRemainder(dividingBy: 86400))
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    private func mode<T: Hashable>(_ values: [T]) -> T? {
+        guard !values.isEmpty else { return nil }
+        let counts = values.reduce(into: [T: Int]()) { $0[$1, default: 0] += 1 }
+        return counts.max { a, b in
+            if a.value == b.value { return String(describing: a.key) < String(describing: b.key) }
+            return a.value < b.value
+        }?.key
+    }
+
+    private var averageBedtimeString: String? {
+        let times = logs.compactMap { $0.sleepStart }.map { secondsIntoDay($0) }
+        guard !times.isEmpty else { return nil }
+        let avg = times.reduce(0, +) / Double(times.count)
+        return timeString(fromSeconds: avg)
+    }
+
+    private var averageWakeTimeString: String? {
+        let times = logs.compactMap { $0.sleepEnd }.map { secondsIntoDay($0) }
+        guard !times.isEmpty else { return nil }
+        let avg = times.reduce(0, +) / Double(times.count)
+        return timeString(fromSeconds: avg)
+    }
+
+    private var averageTotalSleepString: String? {
+        let durations = logs.compactMap { $0.sleepDuration }
+        guard !durations.isEmpty else { return nil }
+        let avg = durations.reduce(0, +) / Double(durations.count)
+        return String(format: "%.1fh", avg / 3600.0)
+    }
+
+    private var averageHRVString: String? {
+        let values = logs.compactMap { $0.heartRateVariability }
+        guard !values.isEmpty else { return nil }
+        let avg = values.reduce(0, +) / Double(values.count)
+        return String(format: "%.0f ms", avg)
+    }
+
+    private var averageRestingHRString: String? {
+        let values = logs.compactMap { $0.restingHeartRate }
+        guard !values.isEmpty else { return nil }
+        let avg = values.reduce(0, +) / Double(values.count)
+        return String(format: "%.0f bpm", avg)
+    }
+
+    private var averageStepsString: String? {
+        guard !logs.isEmpty else { return nil }
+        let avg = logs.map { Double($0.stepCount) }.reduce(0, +) / Double(logs.count)
+        return String(format: "%.0f", avg)
+    }
+
+    private var medianConditionString: String? {
+        let values = logs.compactMap { $0.weatherCondition }
+        guard let m = mode(values) else { return nil }
+        return m.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    private var medianMovementString: String? {
+        let values = logs.compactMap { $0.movementState }
+        guard let m = mode(values) else { return nil }
+        return m.capitalized
+    }
+
+    private var temperatureRangeString: String? {
+        let temps = logs.map { $0.temperature }.filter { $0.isFinite }
+        guard let minV = temps.min(), let maxV = temps.max() else { return nil }
+        return String(format: "%.0f–%.0f°C", minV, maxV)
+    }
+
+    private var pressureRangeString: String? {
+        let pressures = logs.compactMap { $0.pressure }
+        guard let minV = pressures.min(), let maxV = pressures.max() else { return nil }
+        return String(format: "%.0f–%.0f hPa", minV, maxV)
+    }
+    
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                VStack {
-                    HStack(alignment: .top, spacing: 12) {
-                        // Recorded Migraines card (left)
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color(red: 0.53, green: 0.81, blue: 0.92))
-                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                            VStack(spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "brain.head.profile")
-                                        .foregroundColor(.white)
-                                    Text("Recorded Migraines")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .layoutPriority(1)
-                                }
-                                Text("\(logs.count)")
-                                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(24)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
-
-                        // Average Intensity card (right)
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(averageIntensityColor)
-                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-                            VStack(spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "gearshape")
-                                        .foregroundColor(.white)
-                                    Text("Average Intensity")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .lineLimit(2)
-                                        .multilineTextAlignment(.leading)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .layoutPriority(1)
-                                }
-                                Text(averageIntensity.map { String(format: "%.1f", $0 * 10) } ?? "—")
-                                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(24)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 160)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Summary
+                    Text("Summary")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        MetricCard(
+                            title: "Recorded Migraines",
+                            icon: "brain.head.profile",
+                            value: "\(logs.count)",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Average Intensity",
+                            icon: "gearshape",
+                            value: averageIntensity.map { String(format: "%.1f", $0 * 10) } ?? "—",
+                            background: averageIntensityColor
+                        )
                     }
-                    Spacer()
+
+                    // Sleep
+                    Text("Sleep")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        MetricCard(
+                            title: "Average Bed Time",
+                            icon: "bed.double.fill",
+                            value: averageBedtimeString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Average Wake Time",
+                            icon: "alarm",
+                            value: averageWakeTimeString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Average Total Sleep",
+                            icon: "clock",
+                            value: averageTotalSleepString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                    }
+
+                    // Heart
+                    Text("Heart")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        MetricCard(
+                            title: "Average HRV",
+                            icon: "waveform.path.ecg",
+                            value: averageHRVString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Average Resting HR",
+                            icon: "heart",
+                            value: averageRestingHRString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                    }
+
+                    // Activity
+                    Text("Activity")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        MetricCard(
+                            title: "Average Steps",
+                            icon: "figure.walk",
+                            value: averageStepsString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Movement State",
+                            icon: "figure.walk",
+                            value: medianMovementString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                    }
+
+                    // Environment
+                    Text("Environment")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        MetricCard(
+                            title: "Median Conditions",
+                            icon: "cloud.sun",
+                            value: medianConditionString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Temperature Range",
+                            icon: "thermometer",
+                            value: temperatureRangeString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Pressure Range",
+                            icon: "gauge",
+                            value: pressureRangeString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                    }
                 }
                 .padding()
-                .navigationTitle("Analytics")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .accessibilityLabel("Settings")
+            }
+            .navigationTitle("Analytics")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
                     }
-                }
-                .sheet(isPresented: $showingSettings) {
-                    SettingsView()
+                    .accessibilityLabel("Settings")
                 }
             }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
         }
+    }
+}
+
+struct MetricCard: View {
+    let title: String
+    let icon: String
+    let value: String
+    let background: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(background)
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .foregroundColor(.white)
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                }
+                Spacer()
+                Text(value)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+        }
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 
