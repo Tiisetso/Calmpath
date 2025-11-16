@@ -1497,6 +1497,75 @@ struct MeView: View {
         }?.key
     }
 
+    private func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        let mid = sorted.count / 2
+        if sorted.count % 2 == 0 {
+            return (sorted[mid - 1] + sorted[mid]) / 2.0
+        } else {
+            return sorted[mid]
+        }
+    }
+
+    // Deleted median onset properties and replaced with mode-based onset hour and weekday
+    
+    private var mostCommonOnsetHour: (hour: Int, count: Int)? {
+        guard !logs.isEmpty else { return nil }
+        var counts: [Int: Int] = [:]
+        for log in logs {
+            let h = Calendar.current.component(.hour, from: log.timestamp)
+            counts[h, default: 0] += 1
+        }
+        guard let best = counts.max(by: { a, b in
+            if a.value == b.value { return a.key > b.key } // tie-break: earlier hour wins
+            return a.value < b.value
+        }) else { return nil }
+        return (best.key, best.value)
+    }
+
+    private var mostCommonOnsetHourLabel: String? {
+        guard let best = mostCommonOnsetHour else { return nil }
+        let base = Calendar.current.startOfDay(for: Date())
+        let date = Calendar.current.date(byAdding: .hour, value: best.hour, to: base) ?? base
+        let fmt = DateFormatter()
+        fmt.setLocalizedDateFormatFromTemplate("ha")
+        return fmt.string(from: date)
+    }
+
+    private var mostCommonOnsetHourIcon: String {
+        guard let best = mostCommonOnsetHour else { return "clock" }
+        let h = best.hour
+        return (h >= 6 && h < 18) ? "sun.max.fill" : "moon.stars.fill"
+    }
+
+    private var mostCommonOnsetHourDisplay: String? {
+        guard let best = mostCommonOnsetHour, let label = mostCommonOnsetHourLabel else { return nil }
+        return "\(label) (\(best.count))"
+    }
+
+    private var mostCommonWeekday: (weekday: Int, count: Int)? {
+        guard !logs.isEmpty else { return nil }
+        var counts: [Int: Int] = [:]
+        for log in logs {
+            let w = Calendar.current.component(.weekday, from: log.timestamp) // 1=Sunday
+            counts[w, default: 0] += 1
+        }
+        guard let best = counts.max(by: { a, b in
+            if a.value == b.value { return a.key > b.key } // tie-break: earlier weekday wins
+            return a.value < b.value
+        }) else { return nil }
+        return (best.key, best.value)
+    }
+
+    private var mostCommonWeekdayString: String? {
+        guard let best = mostCommonWeekday else { return nil }
+        let symbols = DateFormatter().weekdaySymbols ?? []
+        let idx = max(1, min(7, best.weekday)) - 1
+        guard idx >= 0 && idx < symbols.count else { return nil }
+        return symbols[idx]
+    }
+
     private var averageBedtimeString: String? {
         let times = logs.compactMap { $0.sleepStart }.map { secondsIntoDay($0) }
         guard !times.isEmpty else { return nil }
@@ -1582,6 +1651,18 @@ struct MeView: View {
                             icon: "gearshape",
                             value: averageIntensity.map { String(format: "%.1f", $0 * 10) } ?? "—",
                             background: averageIntensityColor
+                        )
+                        MetricCard(
+                            title: "Peak Onset Hour",
+                            icon: mostCommonOnsetHourIcon,
+                            value: mostCommonOnsetHourDisplay ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
+                        )
+                        MetricCard(
+                            title: "Common Weekday",
+                            icon: "calendar",
+                            value: mostCommonWeekdayString ?? "—",
+                            background: Color(red: 0.53, green: 0.81, blue: 0.92)
                         )
                     }
 
@@ -1798,3 +1879,4 @@ struct ContentView: View {
     ContentView()
         .modelContainer(for: MigraineLog.self, inMemory: true)
 }
+
