@@ -2477,7 +2477,7 @@ struct MeView: View {
                     }
                     
                     // Location Map
-                    Text("Locations")
+                    Text("Heat Map")
                         .font(.headline)
                         .foregroundColor(.secondary)
                     
@@ -2590,6 +2590,12 @@ struct MigraineLocationAnnotation: Identifiable, Hashable, Equatable {
     let coordinate: CLLocationCoordinate2D
     let migraineCount: Int
     let migraineLogs: [MigraineLog]
+    
+    var averageIntensity: Double {
+        guard !migraineLogs.isEmpty else { return 0 }
+        let sum = migraineLogs.reduce(0.0) { $0 + $1.intensity }
+        return sum / Double(migraineLogs.count)
+    }
     
     // Implement Hashable
     func hash(into hasher: inout Hasher) {
@@ -2715,11 +2721,8 @@ struct MigraineLocationsMapView: View {
             } else {
                 Map(position: .constant(.region(region))) {
                     ForEach(annotations) { annotation in
-                        Annotation(
-                            "\(annotation.migraineCount)",
-                            coordinate: annotation.coordinate
-                        ) {
-                            ClusterMarkerView(count: annotation.migraineCount)
+                        Annotation("", coordinate: annotation.coordinate) {
+                            ClusterMarkerView(annotation: annotation)
                         }
                     }
                 }
@@ -2751,23 +2754,25 @@ struct MigraineLocationsMapView: View {
 }
 
 struct ClusterMarkerView: View {
-    let count: Int
+    let annotation: MigraineLocationAnnotation
     
     private var markerColor: Color {
-        switch count {
-        case 1:
-            return Color(red: 0.53, green: 0.81, blue: 0.92)
-        case 2...4:
+        let intensity = annotation.averageIntensity
+        switch intensity {
+        case 0..<0.3:
+            return .green
+        case 0.3..<0.5:
+            return .yellow
+        case 0.5..<0.7:
             return .orange
-        case 5...9:
-            return .red
         default:
-            return .purple
+            return .red
         }
     }
     
     private var markerSize: CGFloat {
-        switch count {
+        // Size based on count for visual prominence
+        switch annotation.migraineCount {
         case 1:
             return 40
         case 2...4:
@@ -2790,15 +2795,9 @@ struct ClusterMarkerView: View {
                 .frame(width: markerSize, height: markerSize)
                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
             
-            VStack(spacing: 2) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: markerSize * 0.3, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Text("\(count)")
-                    .font(.system(size: markerSize * 0.3, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-            }
+            Text(String(format: "%.1f", annotation.averageIntensity * 10))
+                .font(.system(size: markerSize * 0.35, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
         }
     }
 }
@@ -2824,11 +2823,8 @@ struct FullScreenMapView: View {
             ZStack {
                 Map(position: $position, selection: $selectedAnnotation) {
                     ForEach(annotations) { annotation in
-                        Annotation(
-                            "\(annotation.migraineCount)",
-                            coordinate: annotation.coordinate
-                        ) {
-                            ClusterMarkerView(count: annotation.migraineCount)
+                        Annotation("", coordinate: annotation.coordinate) {
+                            ClusterMarkerView(annotation: annotation)
                                 .onTapGesture {
                                     selectedAnnotation = annotation
                                 }
