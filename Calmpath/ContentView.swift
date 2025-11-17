@@ -2625,15 +2625,6 @@ struct MeView: View {
                             background: Color(red: 0.53, green: 0.81, blue: 0.92)
                         )
                     }
-                    
-                    // Location Map
-                    Text("Heat Map")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    
-                    MigraineLocationsMapView(logs: logs)
-                        .frame(height: 300)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding()
             }
@@ -3361,6 +3352,7 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                
                 Section("Home Button Position") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -3760,6 +3752,41 @@ struct ClusterDetailCard: View {
     }
 }
 
+// MARK: - Map View
+
+struct MapView: View {
+    @Query private var logs: [MigraineLog]
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                if logs.isEmpty || logs.allSatisfy({ $0.locationLatitude == nil || $0.locationLongitude == nil }) {
+                    // Empty state
+                    VStack(spacing: 20) {
+                        Image(systemName: "map")
+                            .font(.system(size: 80))
+                            .foregroundColor(.secondary)
+                        
+                        Text("No Location Data")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Migraines logged with location will appear on the map")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
+                } else {
+                    MigraineLocationsMapView(logs: logs)
+                        .ignoresSafeArea(edges: .bottom)
+                }
+            }
+            .navigationTitle("Map")
+        }
+    }
+}
+
 // MARK: - Main Content View
 
 struct ContentView: View {
@@ -3773,6 +3800,11 @@ struct ContentView: View {
             LogsView()
                 .tabItem {
                     Label("Logs", systemImage: "list.bullet.clipboard")
+                }
+            
+            MapView()
+                .tabItem {
+                    Label("Map", systemImage: "map")
                 }
             
             MeView()
